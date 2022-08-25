@@ -39,9 +39,6 @@
 /* Have libgovirt? */
 #mesondefine HAVE_OVIRT
 
-/* Have ovirt_storage_domain_get_disks function? */
-#mesondefine HAVE_OVIRT_STORAGE_DOMAIN_GET_DISKS
-
 /* Have spice-gtk? */
 #mesondefine HAVE_SPICE_GTK
 

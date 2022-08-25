@@ -525,7 +525,6 @@ static void ovirt_foreign_menu_set_files(OvirtForeignMenu *menu,
         char *name = NULL, *id = NULL;
         g_object_get(it->data, "name", &name, "guid", &id, NULL);
 
-#ifdef HAVE_OVIRT_STORAGE_DOMAIN_GET_DISKS
         if (OVIRT_IS_DISK(it->data)) {
             OvirtDiskContentType content_type;
             g_object_get(it->data, "content-type", &content_type, NULL);
@@ -534,7 +533,6 @@ static void ovirt_foreign_menu_set_files(OvirtForeignMenu *menu,
                 goto loop_end;
             }
         }
-#endif
 
         /* The oVirt REST API is supposed to have a 'type' node
          * associated with file resources , but as of 3.2, this node
@@ -750,10 +748,8 @@ static OvirtCollection *storage_domain_get_files(OvirtStorageDomain *domain)
 
     if (type == OVIRT_STORAGE_DOMAIN_TYPE_ISO)
         files = ovirt_storage_domain_get_files(domain);
-#ifdef HAVE_OVIRT_STORAGE_DOMAIN_GET_DISKS
     else if (type == OVIRT_STORAGE_DOMAIN_TYPE_DATA)
         files = ovirt_storage_domain_get_disks(domain);
-#endif
 
     return files;
 }
