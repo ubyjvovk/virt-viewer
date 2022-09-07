@@ -714,6 +714,7 @@ virt_viewer_window_leave_fullscreen(VirtViewerWindow *self)
     virt_viewer_timed_revealer_force_reveal(self->revealer, FALSE);
     gtk_widget_set_size_request(self->window, -1, -1);
     gtk_window_unfullscreen(GTK_WINDOW(self->window));
+    gtk_widget_show(GTK_WIDGET(gtk_builder_get_object(self->builder, "header")));
 
 }
 
@@ -728,6 +729,7 @@ virt_viewer_window_enter_fullscreen(VirtViewerWindow *self, gint monitor)
 
     self->fullscreen_monitor = monitor;
     self->fullscreen = TRUE;
+    gtk_widget_hide(GTK_WIDGET(gtk_builder_get_object(self->builder, "header")));
 
     if (!gtk_widget_get_mapped(self->window)) {
         /*
