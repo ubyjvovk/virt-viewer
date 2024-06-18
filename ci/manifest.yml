@@ -9,39 +9,35 @@ gitlab:
   project: virt-viewer
 
 targets:
-  almalinux-8:
-    jobs:
-      - arch: x86_64
-        variables:
-          RPM: skip
-
   almalinux-9:
     projects:
       - virt-viewer
-      - https://gitlab.com/libvirt/libvirt/-/raw/master/ci/lcitool/projects/libvirt.yml
+      - https://gitlab.com/libvirt/libvirt/-/raw/master/ci/lcitool/projects/libvirt+minimal.yml
       - https://gitlab.com/libvirt/libvirt-glib/-/raw/master/ci/lcitool/projects/libvirt-glib.yml
       - https://gitlab.gnome.org/GNOME/gtk-vnc/-/raw/master/ci/lcitool/projects/gtk-vnc.yml
 
     jobs:
       - arch: x86_64
+        template: .native_git_build_job
         variables:
           RPM: skip
 
-  alpine-318: x86_64
-
   alpine-319: x86_64
+
+  alpine-320: x86_64
 
   alpine-edge: x86_64
 
   centos-stream-9:
     projects:
       - virt-viewer
-      - https://gitlab.com/libvirt/libvirt/-/raw/master/ci/lcitool/projects/libvirt.yml
+      - https://gitlab.com/libvirt/libvirt/-/raw/master/ci/lcitool/projects/libvirt+minimal.yml
       - https://gitlab.com/libvirt/libvirt-glib/-/raw/master/ci/lcitool/projects/libvirt-glib.yml
       - https://gitlab.gnome.org/GNOME/gtk-vnc/-/raw/master/ci/lcitool/projects/gtk-vnc.yml
 
     jobs:
       - arch: x86_64
+        template: .native_git_build_job
         variables:
           RPM: skip
 

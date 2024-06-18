@@ -4,9 +4,10 @@
 #
 # https://gitlab.com/libvirt/libvirt-ci
 
-function install_buildenv() {
-    apk update
-    apk upgrade
+FROM docker.io/library/alpine:3.20
+
+RUN apk update && \
+    apk upgrade && \
     apk add \
         bash-completion \
         ca-certificates \
@@ -30,14 +31,13 @@ function install_buildenv() {
         rest-dev \
         samurai \
         spice-gtk-dev \
-        vte3-dev
-    apk list --installed | sort > /packages.txt
-    mkdir -p /usr/libexec/ccache-wrappers
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/cc
+        vte3-dev && \
+    apk list --installed | sort > /packages.txt && \
+    mkdir -p /usr/libexec/ccache-wrappers && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/cc && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/gcc
-}
 
-export CCACHE_WRAPPERSDIR="/usr/libexec/ccache-wrappers"
-export LANG="en_US.UTF-8"
-export MAKE="/usr/bin/make"
-export NINJA="/usr/bin/ninja"
+ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
+ENV LANG "en_US.UTF-8"
+ENV MAKE "/usr/bin/make"
+ENV NINJA "/usr/bin/ninja"

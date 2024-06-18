@@ -32,6 +32,7 @@
       then
         source ci/buildenv/$NAME.sh ;
         install_buildenv ;
+        export_buildenv ;
       fi
     - cat /packages.txt
   variables:
@@ -168,6 +169,7 @@
       then
         source ci/buildenv/$NAME-cross-$CROSS.sh ;
         install_buildenv ;
+        export_buildenv ;
       fi
     - cat /packages.txt
   variables:

@@ -41,6 +41,7 @@ function install_buildenv() {
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/x86_64-w64-mingw32-cc
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/x86_64-w64-mingw32-gcc
 }
+function export_buildenv() {
 
 export CCACHE_WRAPPERSDIR="/usr/libexec/ccache-wrappers"
 export LANG="en_US.UTF-8"
@@ -49,3 +50,4 @@ export NINJA="/usr/bin/ninja"
 
 export ABI="x86_64-w64-mingw32"
 export MESON_OPTS="--cross-file=/usr/share/mingw/toolchain-mingw64.meson"
+}
