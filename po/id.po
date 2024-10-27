@@ -1,23 +1,23 @@
 # Virt Viewer package strings.
 # Copyright (C) 2020 The Virt Viewer authors
 # This file is distributed under the same license as the virt-viewer package.
-# Andika Triwidada <andika@gmail.com>, 2020, 2021.
+# Andika Triwidada <andika@gmail.com>, 2020, 2021, 2024.
 # Arif Budiman <arifpedia@gmail.com>, 2024.
 msgid ""
 msgstr ""
 "Project-Id-Version: virt-viewer 9.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-02-13 15:19+0100\n"
-"PO-Revision-Date: 2024-01-18 13:35+0000\n"
-"Last-Translator: Arif Budiman <arifpedia@gmail.com>\n"
-"Language-Team: Indonesian <https://translate.fedoraproject.org/projects/virt-"
-"viewer/virt-viewer/id/>\n"
+"PO-Revision-Date: 2024-10-27 18:58+0000\n"
+"Last-Translator: Andika Triwidada <andika@gmail.com>\n"
+"Language-Team: Indonesian <https://translate.fedoraproject.org/projects/"
+"virt-viewer/virt-viewer/id/>\n"
 "Language: id\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.3.1\n"
+"X-Generator: Weblate 5.7.2\n"
 
 #, c-format
 msgid ""
@@ -81,7 +81,7 @@ msgid "<b>Loading...</b>"
 msgstr "<b>Memuat...</b>"
 
 msgid "<never|always>"
-msgstr ""
+msgstr "<tak pernah|selalu>"
 
 msgid "<never|on-disconnect>"
 msgstr "<never|on-disconnect>"
@@ -396,7 +396,6 @@ msgstr ""
 msgid "Remote Viewer"
 msgstr "Penampil Jarak Jauh"
 
-#, fuzzy
 msgid ""
 "Remote Viewer provides a graphical viewer for the guest OS display. At this "
 "time it supports guest OS using the VNC or SPICE protocols. Further "
@@ -404,78 +403,65 @@ msgid ""
 "can connect directly to both local and remotely hosted guest OS, optionally "
 "using SSL/TLS encryption."
 msgstr ""
-"Remote Viewer menyediakan penampil grafis untuk tampilan OS tamu. Saat ini "
-"mendukung OS tamu menggunakan protokol VNC atau SPICE. Protokol lebih lanjut "
-"mungkin didukung di masa depan sesuai permintaan pengguna. Penampil dapat "
-"terhubung langsung ke OS tamu lokal dan yang dihosting dari jarak jauh, "
-"secara opsional menggunakan enkripsi SSL / TLS."
+"Remote Viewer menyediakan penampil grafis untuk tampilan OS guest. Saat ini "
+"mendukung OS guest menggunakan protokol VNC atau SPICE. Protokol lebih "
+"lanjut mungkin didukung di masa depan sesuai permintaan pengguna. Penampil "
+"dapat terhubung langsung ke OS guest lokal dan yang diwadahi dari jarak "
+"jauh, secara opsional menggunakan enkripsi SSL/TLS."
 
-#, fuzzy
 msgid "Remote viewer client"
 msgstr "Klien penampil jarak jauh"
 
-#, fuzzy
 msgid "Remotely access virtual machines"
-msgstr "Akses mesin virtual dari jarak jauh"
+msgstr "Mengakses mesin virtual dari jarak jauh"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Run '%s --help' to see a full list of available command line options\n"
 msgstr ""
 "Jalankan '%s --help' untuk melihat daftar lengkap opsi baris perintah yang "
 "tersedia\n"
 
-#, fuzzy
 msgid "Save screenshot"
 msgstr "Simpan tangkapan layar"
 
-#, fuzzy
 msgid "Screenshot.png"
-msgstr "Screenshot.png"
+msgstr "TangkapanLayar.png"
 
 #. Create the widgets
-#, fuzzy
 msgid "Select USB devices for redirection"
 msgstr "Pilih perangkat USB yang akan dialihkan"
 
-#, fuzzy
 msgid "Select the virtual machine only by its ID"
 msgstr "Pilih mesin virtual hanya dengan ID-nya"
 
-#, fuzzy
 msgid "Select the virtual machine only by its UUID"
 msgstr "Pilih mesin virtual hanya dengan UUID-nya"
 
-#, fuzzy
 msgid "Select the virtual machine only by its name"
 msgstr "Pilih mesin virtual hanya dengan namanya"
 
-#, fuzzy
 msgid "Selected"
 msgstr "Dipilih"
 
 msgid "Send key"
-msgstr ""
+msgstr "Kirim tombol"
 
 msgctxt "shortcut window"
 msgid "Send secure attention (Ctrl-Alt-Del)"
 msgstr "Kirim perhatian aman (Ctrl-Alt-Del)"
 
-#, fuzzy
 msgid "Serial"
 msgstr "Serial"
 
-#, fuzzy
 msgid "Set window title"
-msgstr "Judul jendela"
+msgstr "Atur judul jendela"
 
 msgid "Share client session"
 msgstr "Bagikan sesi klien"
 
-#, fuzzy
 msgid "Share clipboard"
 msgstr "Bagikan papan klip"
 
-#, fuzzy
 msgid "Share folder"
 msgstr "Bagikan folder"
 
@@ -490,31 +476,27 @@ msgctxt "shortcut window"
 msgid "Smartcard remove"
 msgstr "Pencabutan smartcard"
 
-#, fuzzy
 msgid "Spice"
-msgstr "Rempah-rempah"
+msgstr "Spice"
 
 msgid "Switch to fullscreen view"
-msgstr ""
+msgstr "Beralih ke tampilan layar penuh"
 
-#, fuzzy
 msgid "The Fedora Translation Team"
-msgstr "Tim Penerjemah Fedora"
+msgstr "Tim Penerjemahan Fedora"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Transferring %u file of %u..."
 msgid_plural "Transferring %u files of %u..."
-msgstr[0] "Mentransfer %u file dari %u ..."
+msgstr[0] "Mentransfer %u berkas dari %u..."
 
-#, fuzzy
 msgid "Transferring 1 file..."
-msgstr "Mentransfer 1 file ..."
+msgstr "Mentransfer 1 berkas..."
 
 msgctxt "shortcut window"
 msgid "USB device reset"
 msgstr "Reset peranti USB"
 
-#, fuzzy
 msgid "USB device selection"
 msgstr "Pemilihan perangkat USB"
 
@@ -522,61 +504,56 @@ msgstr "Pemilihan perangkat USB"
 msgid "USB redirection error: %s"
 msgstr "Kesalahan pengalihan USB: %s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unable to authenticate with remote desktop server at %s: %s\n"
 msgstr ""
-"Tidak dapat mengautentikasi dengan server desktop jarak jauh pada %s: %s\n"
+"Tidak bisa mengautentikasi dengan server desktop jarak jauh pada %s: %s\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unable to authenticate with remote desktop server: %s"
-msgstr "Tidak dapat mengautentikasi dengan server desktop jarak jauh: %s"
+msgstr "Tidak bisa mengautentikasi dengan server desktop jarak jauh: %s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unable to connect to libvirt with URI: %s."
-msgstr "Tidak dapat tersambung ke libvirt dengan URI: %s."
+msgstr "Tidak bisa menyambung ke libvirt dengan URI: %s."
 
 msgid "Unable to connect to oVirt"
-msgstr ""
+msgstr "Tidak bisa menyambung ke oVirt"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unable to connect to the graphic server %s"
-msgstr "Tidak dapat terhubung ke server grafis %s"
+msgstr "Tidak bisa menyambung ke server grafis %s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unable to connect: %s"
-msgstr "Tidak dapat terhubung: %s"
+msgstr "Tidak bisa terhubung: %s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unable to determine image format for file '%s'"
-msgstr "Tidak dapat menentukan format gambar untuk file '%s'"
+msgstr "Tidak bisa menentukan format gambar untuk berkas '%s'"
 
-#, fuzzy
 msgctxt "Unknown UUID"
 msgid "Unknown"
 msgstr "Tak dikenal"
 
-#, fuzzy
 msgctxt "Unknown name"
 msgid "Unknown"
 msgstr "Tak dikenal"
 
-#, fuzzy
 msgid "Unspecified error"
 msgstr "Kesalahan tidak jelas"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unsupported authentication type %u"
 msgstr "Jenis otentikasi tidak didukung %u"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unsupported graphic type '%s'"
 msgstr "Jenis grafik '%s' tidak didukung"
 
-#, fuzzy
 msgid "Username:"
 msgstr "Nama Pengguna:"
 
-#, fuzzy
 msgid "VNC does not provide GUID"
 msgstr "VNC tidak menyediakan GUID"
 
@@ -584,57 +561,43 @@ msgctxt "shortcut window"
 msgid "Viewer"
 msgstr "Penampil"
 
-#, fuzzy
 msgid "Virt Viewer"
-msgstr ""
-"<computeroutput>$ </computeroutput><userinput>virt-viewer --connect "
-"qemu+ssh://root@<replaceable>server</replaceable>/system testkvm\n"
-"</userinput><computeroutput>root@server's password: \n"
-"root@server's password: </computeroutput>"
+msgstr "Penampil Virt"
 
-#, fuzzy
 msgid "Virt-Viewer connection file"
-msgstr "File koneksi Virt-Viewer"
+msgstr "Berkas koneksi Virt-Viewer"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Virtual machine %s is not running"
-msgstr "Mesin virtual %s tidak berjalan"
+msgstr "Mesin virtual %s tidak sedang berjalan"
 
-#, fuzzy
 msgid "Virtual machine graphical console"
 msgstr "Konsol grafis mesin virtual"
 
-#, fuzzy
 msgid "Wait for domain to start"
-msgstr "Tunggu domain dimulai"
+msgstr "Menunggu domain dimulai"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Waiting for display %d..."
-msgstr "Menunggu tampilan %d ..."
+msgstr "Menunggu tampilan %d..."
 
-#, fuzzy
 msgid "Waiting for guest domain to be created"
-msgstr "Menunggu domain tamu dibuat"
+msgstr "Menunggu domain guest dibuat"
 
-#, fuzzy
 msgid "Waiting for guest domain to re-start"
-msgstr "Menunggu domain tamu untuk memulai kembali"
+msgstr "Menunggu domain guest untuk memulai kembali"
 
-#, fuzzy
 msgid "Waiting for guest domain to start"
-msgstr "Menunggu domain tamu untuk dimulai"
+msgstr "Menunggu domain guest untuk dimulai"
 
-#, fuzzy
 msgid "Waiting for libvirt to start"
 msgstr "Menunggu libvirt dimulai"
 
-#, fuzzy
 msgid "Zoom _In"
-msgstr "Perbesar"
+msgstr "Per_besar"
 
-#, fuzzy
 msgid "Zoom _Out"
-msgstr "Perkecil"
+msgstr "Per_kecil"
 
 msgctxt "shortcut window"
 msgid "Zoom in"
@@ -644,9 +607,8 @@ msgstr "Perbesar"
 msgid "Zoom level must be within %d-%d\n"
 msgstr "Tingkat pembesaran harus dalam %d-%d\n"
 
-#, fuzzy
 msgid "Zoom level of window, in percentage"
-msgstr "Tingkat zoom jendela, dalam persentase"
+msgstr "Tingkat zum jendela, dalam persentase"
 
 msgctxt "shortcut window"
 msgid "Zoom out"
@@ -656,22 +618,18 @@ msgctxt "shortcut window"
 msgid "Zoom reset"
 msgstr "Reset zum"
 
-#, fuzzy
 msgid "[none]"
-msgstr "(tidak ada)"
+msgstr "[nihil]"
 
-#, fuzzy
 msgid "_About"
 msgstr "Tent_ang"
 
 msgid "_Auto resize"
 msgstr "Otom_atis ubah ukuran"
 
-#, fuzzy
 msgid "_Cancel"
-msgstr "Ba_tal"
+msgstr "_Batal"
 
-#, fuzzy
 msgid "_Close"
 msgstr "_Tutup"
 
@@ -681,56 +639,49 @@ msgstr "Rincian _guest"
 msgid "_Keyboard shortcuts"
 msgstr "Pintasan papan ti_k"
 
-#, fuzzy
 msgid "_Normal Size"
 msgstr "Ukura_n Normal"
 
 msgid "_OK"
 msgstr "_OK"
 
-#, fuzzy
 msgid "_Pause"
 msgstr "_Jeda"
 
 msgid "_Preferences…"
 msgstr "_Preferensi…"
 
-#, fuzzy
 msgid "_Reset"
 msgstr "_Reset"
 
-#, fuzzy
 msgid "_Save"
 msgstr "_Simpan"
 
-#, fuzzy
 msgid "_Screenshot"
-msgstr "Simpan tangkapan layar"
+msgstr "_Tangkapan Layar"
 
-#, fuzzy
 msgid "failed to parse oVirt URI"
-msgstr "gagal untuk mengurai URI oVirt"
+msgstr "gagal mengurai URI oVirt"
 
 msgid "label"
 msgstr "label"
 
-#, fuzzy, c-format
+#, c-format
 msgid "oVirt VM %s has no display"
-msgstr "oVirt VM %s tidak memiliki tampilan"
+msgstr "VM oVirt %s tidak memiliki tampilan"
 
-#, fuzzy, c-format
+#, c-format
 msgid "oVirt VM %s has no host information"
-msgstr "oVirt VM %s tidak memiliki informasi host"
+msgstr "VM oVirt %s tidak memiliki informasi host"
 
-#, fuzzy, c-format
+#, c-format
 msgid "oVirt VM %s has unknown display type: %u"
-msgstr "oVirt VM %s memiliki jenis tampilan yang tidak diketahui: %u"
+msgstr "VM oVirt %s memiliki jenis tampilan yang tidak diketahui: %u"
 
-#, fuzzy, c-format
+#, c-format
 msgid "oVirt VM %s is not running"
-msgstr "oVirt VM %s tidak berjalan"
+msgstr "VM oVirt %s tidak sedang berjalan"
 
-#, fuzzy
 msgid "only SSH or UNIX socket connection supported."
 msgstr "hanya koneksi soket SSH atau UNIX yang didukung."
 
