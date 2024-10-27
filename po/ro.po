@@ -1,21 +1,23 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the virt-viewer package.
-# Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>, 2023.
+# Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>, 2023, 2024.
 msgid ""
 msgstr ""
 "Project-Id-Version: virt-viewer\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-02-13 15:19+0100\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
+"PO-Revision-Date: 2024-09-16 11:52+0000\n"
+"Last-Translator: Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>\n"
+"Language-Team: Romanian <https://translate.fedoraproject.org/projects/"
+"virt-viewer/virt-viewer/ro/>\n"
 "Language: ro\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
 "20)) ? 1 : 2;\n"
+"X-Generator: Weblate 5.7.2\n"
 
 #, c-format
 msgid ""
@@ -23,6 +25,9 @@ msgid ""
 "Error: can't handle multiple URIs\n"
 "\n"
 msgstr ""
+"\n"
+"Eroare: nu se pot gestiona adrese URI multiple\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -30,6 +35,9 @@ msgid ""
 "No ID|UUID|DOMAIN-NAME was specified for '%s'\n"
 "\n"
 msgstr ""
+"\n"
+"Nu a fost specificat niciun ID|UUID|NUME_DE_DOMENIU pentru „%s”\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -37,6 +45,9 @@ msgid ""
 "Usage: %s [OPTIONS] [ID|UUID|DOMAIN-NAME]\n"
 "\n"
 msgstr ""
+"\n"
+"Utilizare: %s [OPȚIUNI] [ID|UUID|NUME_DE_DOMENIU]\n"
+"\n"
 
 #. translators:
 #. * This is "<ungrab accelerator> <subtitle> - <appname>"
@@ -44,7 +55,7 @@ msgstr ""
 #.
 #, c-format
 msgid "%s %s - %s"
-msgstr ""
+msgstr "%s %s - %s"
 
 #. translators:
 #. * This is "<ungrab accelerator> - <appname>"
@@ -56,53 +67,57 @@ msgstr ""
 #.
 #, c-format
 msgid "%s - %s"
-msgstr ""
+msgstr "%s - %s"
 
 #, c-format
 msgid "%s version %s"
-msgstr ""
+msgstr "%s versiunea %s"
 
 #, c-format
 msgid "(Press %s to release pointer)"
-msgstr ""
+msgstr "(Apăsați %s pentru a elibera indicatorul mouse-ului)"
 
 msgid "<b>Loading...</b>"
-msgstr ""
+msgstr "<b>Se încarcă...</b>"
 
 msgid "<never|always>"
-msgstr ""
+msgstr "<niciodată|întotdeauna>"
 
 msgid "<never|on-disconnect>"
-msgstr ""
+msgstr "<never|on-disconnect>"
 
 msgid "A remote desktop client built with GTK-VNC, SPICE-GTK and libvirt"
 msgstr ""
+"Un client de birou la distanță construit cu GTK-VNC, SPICE-GTK și libvirt"
 
 msgid "About Virt-Viewer"
-msgstr ""
+msgstr "Despre Virt-Viewer"
 
 msgid "Access remote desktops"
-msgstr ""
+msgstr "Accesează birouri la distanță"
 
 #, c-format
 msgid "Address is too long for UNIX socket_path: %s"
-msgstr ""
+msgstr "Adresa este prea lungă pentru socket_path UNIX: %s"
 
 #, c-format
 msgid "At least %s version %s is required to setup this connection"
 msgstr ""
+"Cel puțin %s versiunea %s este necesară pentru a configura această conexiune"
 
 #, c-format
 msgid ""
 "At least %s version %s is required to setup this connection, see %s for "
 "details"
 msgstr ""
+"Cel puțin %s versiunea %s este necesară pentru a configura această "
+"conexiune, consultați %s pentru detalii"
 
 msgid "Attach to the local display using libvirt"
-msgstr ""
+msgstr "Atașați-vă la afișajul local utilizând libvirt"
 
 msgid "Authentication failed."
-msgstr ""
+msgstr "Autentificarea a eșuat."
 
 #, c-format
 msgid ""
@@ -111,267 +126,279 @@ msgid ""
 "<b>%s</b>\n"
 "\n"
 msgstr ""
+"Autentificarea este necesară pentru conexiunea %s la:\n"
+"\n"
+"<b>%s</b>\n"
+"\n"
 
 #, c-format
 msgid "Authentication is required for the %s connection:\n"
-msgstr ""
+msgstr "Autentificarea este necesară pentru conexiunea %s:\n"
 
 msgid "Authentication required"
-msgstr ""
+msgstr "Autentificarea este necesară"
 
 msgid "Authentication was cancelled"
-msgstr ""
+msgstr "Autentificarea a fost anulată"
 
 msgid "Automatically resize remote framebuffer"
 msgstr ""
+"Redimensionarea automată a memoriei tampon de cadre (framebuffer) de la "
+"distanță"
 
 msgid "Available virtual machines"
-msgstr ""
+msgstr "Mașini virtuale disponibile"
 
 msgid "C_onnect"
-msgstr ""
+msgstr "C_onectare"
 
 #, c-format
 msgid "Can't connect to channel: %s"
-msgstr ""
+msgstr "Nu se poate efectua conectarea la canalul: %s"
 
 msgid "Cannot determine the connection type from URI"
-msgstr ""
+msgstr "Nu se poate determina tipul de conexiune din adresa URI"
 
 #, c-format
 msgid "Cannot determine the graphic type for the guest %s"
-msgstr ""
+msgstr "Nu se poate determina tipul grafic pentru invitatul %s"
 
 #, c-format
 msgid "Cannot determine the host for the guest %s"
-msgstr ""
+msgstr "Nu se poate determina gazda pentru invitatul %s"
 
 msgid "Cannot get guest state"
-msgstr ""
+msgstr "Nu se poate obține starea invitatului"
 
 msgid "Change CD"
-msgstr ""
+msgstr "Schimbare CD"
 
 msgid "Checking guest domain status"
-msgstr ""
+msgstr "Se verifică starea domeniului invitatului"
 
 msgid "Choose a virtual machine"
-msgstr ""
+msgstr "Alegeți o mașină virtuală"
 
 msgid "Connect to SSH failed."
-msgstr ""
+msgstr "Conectarea la SSH a eșuat."
 
 msgid "Connect to channel unsupported."
-msgstr ""
+msgstr "Conectare la un canal neacceptat."
 
 msgid "Connect to hypervisor"
-msgstr ""
+msgstr "Conectarea la hipervizor"
 
 msgid "Connected to graphic server"
-msgstr ""
+msgstr "Conectat la serverul grafic"
 
 #, c-format
 msgid "Connecting to UNIX socket failed: %s"
-msgstr ""
+msgstr "Conectarea la soclul UNIX a eșuat: %s"
 
 msgid "Connecting to graphic server"
-msgstr ""
+msgstr "Conectarea la serverul grafic"
 
 msgid "Connection _Address"
-msgstr ""
+msgstr "_Adresa de conectare"
 
 msgid "Connection details"
-msgstr ""
+msgstr "Detalii de conectare"
 
 msgid "Console support is compiled out!"
-msgstr ""
+msgstr "Suportul pentru consolă este compilat!"
 
 msgid ""
 "Copyright (C) 2007-2012 Daniel P. Berrange\n"
 "Copyright (C) 2007-2020 Red Hat, Inc."
 msgstr ""
+"Drepturi de autor (C) 2007-2012 Daniel P. Berrange\n"
+"Drepturi de autor (C) 2007-2020 Red Hat, Inc."
 
 msgid "Couldn't open oVirt session: "
-msgstr ""
+msgstr "Nu s-a putut deschide sesiunea oVirt: "
 
 #, c-format
 msgid "Creating UNIX socket failed: %s"
-msgstr ""
+msgstr "Crearea soclului UNIX a eșuat: %s"
 
 #, c-format
 msgid "Current: %s"
-msgstr ""
+msgstr "Curent: %s"
 
 msgid "Cursor display mode: 'local' or 'auto'"
-msgstr ""
+msgstr "Modul de afișare a cursorului: „local” sau „auto”"
 
 msgid "Customise hotkeys"
-msgstr ""
+msgstr "Personalizarea tastelor de acces rapid"
 
 msgctxt "shortcut window"
 msgid "Devices"
-msgstr ""
+msgstr "Dispozitive"
 
 msgid "Direct connection with no automatic tunnels"
-msgstr ""
+msgstr "Conectare directă fără tuneluri automate"
 
 #, c-format
 msgid "Display _%d"
-msgstr ""
+msgstr "Afișează _%d"
 
 msgid "Display can only be attached through libvirt with --attach"
-msgstr ""
+msgstr "Ecranul poate fi atașat numai prin libvirt cu „--attach”"
 
 msgid "Display debugging information"
-msgstr ""
+msgstr "Afișează informații de depanare"
 
 msgid "Display verbose information"
-msgstr ""
+msgstr "Afișează informații detaliate"
 
 msgid "Display version information"
-msgstr ""
+msgstr "Afișează informațiile despre versiune"
 
 msgid "Do not ask me again"
-msgstr ""
+msgstr "Nu mă întreba din nou"
 
 msgid "Do you want to close the session?"
-msgstr ""
+msgstr "Doriți să închideți sesiunea?"
 
 msgid "Enable kiosk mode"
-msgstr ""
+msgstr "Activează modul chioșc (kiosk)"
 
 msgid "Failed to change CD"
-msgstr ""
+msgstr "Schimbarea CD-ului a eșuat"
 
 msgid "Failed to connect: "
-msgstr ""
+msgstr "Conectarea a eșuat: "
 
 msgid "Failed to initiate connection"
-msgstr ""
+msgstr "Inițierea conexiunii a eșuat"
 
 msgid "Failed to read stdin: "
-msgstr ""
+msgstr "Nu s-a reușit să se citească intrarea standard: "
 
 msgid "File Transfers"
-msgstr ""
+msgstr "Transferuri de fișiere"
 
 msgid "Finding guest domain"
-msgstr ""
+msgstr "Se caută domeniul invitatului"
 
 msgid "Folder sharing"
-msgstr ""
+msgstr "Partajarea folderelor"
 
 msgid "For example, spice://foo.example.org:5900"
-msgstr ""
+msgstr "De exemplu, spice://foo.example.org:5900"
 
 msgctxt "shortcut window"
 msgid "Fullscreen"
-msgstr ""
+msgstr "Ecran complet"
 
 msgid "GUID:"
-msgstr ""
+msgstr "GUID:"
 
 #, c-format
 msgid "Guest '%s' is not reachable"
-msgstr ""
+msgstr "Invitatul „%s” nu este accesibil"
 
 msgid "Guest Details"
-msgstr ""
+msgstr "Detalii despre invitat"
 
 msgid "Guest domain has shutdown"
-msgstr ""
+msgstr "Domeniul invitat a fost închis"
 
 msgctxt "shortcut window"
 msgid "Guest input devices"
-msgstr ""
+msgstr "Dispozitive de intrare ale invitatului"
 
 #, c-format
 msgid "Invalid file %s: "
-msgstr ""
+msgstr "Fișier nevalid %s: "
 
 #, c-format
 msgid "Invalid kiosk-quit argument: %s"
-msgstr ""
+msgstr "Argument nevalid pentru kiosk-quit: %s"
 
 msgid "Invalid password"
-msgstr ""
+msgstr "Parolă nevalidă"
 
 msgid "Leave fullscreen"
-msgstr ""
+msgstr "Părăsiți ecranul complet"
 
 msgid "Loading..."
-msgstr ""
+msgstr "Se încarcă…"
 
 msgid "Machine"
-msgstr ""
+msgstr "Maşină"
 
 msgid "More actions"
-msgstr ""
+msgstr "Mai multe acțiuni"
 
 msgid "Name"
-msgstr ""
+msgstr "Nume"
 
 msgid "Name:"
-msgstr ""
+msgstr "Nume:"
 
 msgid "No ISO files in domain"
-msgstr ""
+msgstr "Nu există fișiere ISO în domeniu"
 
 msgid "No connection was chosen"
-msgstr ""
+msgstr "Nu a fost aleasă nicio conexiune"
 
 msgid "No running virtual machine found"
-msgstr ""
+msgstr "Nu s-a găsit nicio mașină virtuală în funcțiune"
 
 msgid "No virtual machine was chosen"
-msgstr ""
+msgstr "Nu a fost aleasă nicio mașină virtuală"
 
 msgid "Open in full screen mode (adjusts guest resolution to fit the client)"
 msgstr ""
+"Deschide în modul ecran complet (ajustează rezoluția oaspetelui pentru a se "
+"potrivi clientului)"
 
 msgid "Password:"
-msgstr ""
+msgstr "Parola:"
 
 msgid "Please add an extension to the file name"
-msgstr ""
+msgstr "Adăugați o extensie la numele fișierului"
 
 msgid "Power _down"
-msgstr ""
+msgstr "_Deconectare"
 
 msgid "Preferences"
-msgstr ""
+msgstr "Preferințe"
 
 msgid "QEMU debug console"
-msgstr ""
+msgstr "Consola de depanare QEMU"
 
 msgid "QEMU human monitor"
-msgstr ""
+msgstr "Monitor uman QEMU"
 
 msgid "Quit on given condition in kiosk mode"
-msgstr ""
+msgstr "Renunțarea la o condiție dată în modul chioșc (kiosk)"
 
 msgid "Read-only"
-msgstr ""
+msgstr "Numai-citire"
 
 msgid "Recent connections"
-msgstr ""
+msgstr "Conexiuni recente"
 
 msgid "Reconnect to domain upon restart"
-msgstr ""
+msgstr "Reconectare la domeniu la repornire"
 
 msgid "Refresh"
-msgstr ""
+msgstr "Reîmprospătează"
 
 msgctxt "shortcut window"
 msgid "Release cursor"
-msgstr ""
+msgstr "Eliberează cursorul"
 
 msgid ""
 "Remap keys format key=keymod+key e.g. F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
 msgstr ""
+"Reconfigurați tastele în formatul tastă=mod-tastă+tastă, de exemplu "
+"F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
 
 msgid "Remote Viewer"
-msgstr ""
+msgstr "Vizor la distanță"
 
 msgid ""
 "Remote Viewer provides a graphical viewer for the guest OS display. At this "
@@ -380,277 +407,288 @@ msgid ""
 "can connect directly to both local and remotely hosted guest OS, optionally "
 "using SSL/TLS encryption."
 msgstr ""
+"Vizorul la distanță oferă un vizor grafic pentru afișarea sistemului de "
+"operare invitat. În acest moment, oferă suport pentru sistemele de operare "
+"invitate utilizând protocoalele VNC sau SPICE. Alte protocoale pot fi "
+"acceptate în viitor, în funcție de cerințele utilizatorilor. Vizorul se "
+"poate conecta direct atât la sistemul de operare invitat găzduit local, cât "
+"și la distanță, utilizând opțional criptarea SSL/TLS."
 
 msgid "Remote viewer client"
-msgstr ""
+msgstr "Client de vizualizare la distanță"
 
 msgid "Remotely access virtual machines"
-msgstr ""
+msgstr "Accesați de la distanță mașini virtuale"
 
 #, c-format
 msgid "Run '%s --help' to see a full list of available command line options\n"
 msgstr ""
+"Rulați «%s -- help» pentru a vedea o listă completă a opțiunilor din linia "
+"de comandă disponibile.\n"
 
 msgid "Save screenshot"
-msgstr ""
+msgstr "Salvare captură de ecran"
 
 msgid "Screenshot.png"
-msgstr ""
+msgstr "Captură_de_ecran.png"
 
 #. Create the widgets
 msgid "Select USB devices for redirection"
-msgstr ""
+msgstr "Selectați dispozitivele USB pentru redirecționare"
 
 msgid "Select the virtual machine only by its ID"
-msgstr ""
+msgstr "Selectați mașina virtuală numai după ID-ul acesteia"
 
 msgid "Select the virtual machine only by its UUID"
-msgstr ""
+msgstr "Selectați mașina virtuală numai după UUID-ul acesteia"
 
 msgid "Select the virtual machine only by its name"
-msgstr ""
+msgstr "Selectați mașina virtuală numai după numele acesteia"
 
 msgid "Selected"
-msgstr ""
+msgstr "Selectată"
 
 msgid "Send key"
-msgstr ""
+msgstr "Trimite cheia"
 
 msgctxt "shortcut window"
 msgid "Send secure attention (Ctrl-Alt-Del)"
-msgstr ""
+msgstr "Trimiteți o alertă de securitate (Ctrl-Alt-Del)"
 
 msgid "Serial"
-msgstr ""
+msgstr "Serie"
 
 msgid "Set window title"
-msgstr ""
+msgstr "Definiți titlul ferestrei"
 
 msgid "Share client session"
-msgstr ""
+msgstr "Partajare sesiune client"
 
 msgid "Share clipboard"
-msgstr ""
+msgstr "Partajare clipboard"
 
 msgid "Share folder"
-msgstr ""
+msgstr "Partajare dosare"
 
 msgid "Show / hide password text"
-msgstr ""
+msgstr "Afișează / ascunde textul parolei"
 
 msgctxt "shortcut window"
 msgid "Smartcard insert"
-msgstr ""
+msgstr "Inserare card de memorie inteligent"
 
 msgctxt "shortcut window"
 msgid "Smartcard remove"
-msgstr ""
+msgstr "Scoatere card de memorie inteligent"
 
 msgid "Spice"
-msgstr ""
+msgstr "Spice"
 
 msgid "Switch to fullscreen view"
-msgstr ""
+msgstr "Treceți la vizualizarea pe tot ecranul"
 
 msgid "The Fedora Translation Team"
-msgstr ""
+msgstr "Echipa de traducere a Fedora"
 
 #, c-format
 msgid "Transferring %u file of %u..."
 msgid_plural "Transferring %u files of %u..."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Se transferă %u fișier din %u..."
+msgstr[1] "Se transferă %u fișiere din %u..."
+msgstr[2] "Se transferă %u de fișiere din %u..."
 
 msgid "Transferring 1 file..."
-msgstr ""
+msgstr "Se transferă un fișier..."
 
 msgctxt "shortcut window"
 msgid "USB device reset"
-msgstr ""
+msgstr "Reinițializare dispozitiv USB"
 
 msgid "USB device selection"
-msgstr ""
+msgstr "Selectare dispozitiv USB"
 
 #, c-format
 msgid "USB redirection error: %s"
-msgstr ""
+msgstr "Eroare de redirecționare USB: %s"
 
 #, c-format
 msgid "Unable to authenticate with remote desktop server at %s: %s\n"
 msgstr ""
+"Nu a fost posibilă autentificarea cu serverul de birou la distanță de la %s: "
+"%s\n"
 
 #, c-format
 msgid "Unable to authenticate with remote desktop server: %s"
-msgstr ""
+msgstr "Nu a fost posibilă autentificarea cu serverul de birou la distanță: %s"
 
 #, c-format
 msgid "Unable to connect to libvirt with URI: %s."
-msgstr ""
+msgstr "Nu a fost posibilă conectarea la libvirt cu adresa URI: %s."
 
 msgid "Unable to connect to oVirt"
-msgstr ""
+msgstr "Nu se poate conecta la oVirt"
 
 #, c-format
 msgid "Unable to connect to the graphic server %s"
-msgstr ""
+msgstr "Nu se poate conecta la serverul grafic %s"
 
 #, c-format
 msgid "Unable to connect: %s"
-msgstr ""
+msgstr "Nu se poate conecta: %s"
 
 #, c-format
 msgid "Unable to determine image format for file '%s'"
-msgstr ""
+msgstr "Nu se poate determina formatul imaginii pentru fișierul „%s"
 
 msgctxt "Unknown UUID"
 msgid "Unknown"
-msgstr ""
+msgstr "Necunoscut"
 
 msgctxt "Unknown name"
 msgid "Unknown"
-msgstr ""
+msgstr "Necunoscut"
 
 msgid "Unspecified error"
-msgstr ""
+msgstr "Eroare nespecificată"
 
 #, c-format
 msgid "Unsupported authentication type %u"
-msgstr ""
+msgstr "Tip de autentificare neacceptat %u"
 
 #, c-format
 msgid "Unsupported graphic type '%s'"
-msgstr ""
+msgstr "Tip grafic neacceptat „%s”"
 
 msgid "Username:"
-msgstr ""
+msgstr "Numele utilizatorului:"
 
 msgid "VNC does not provide GUID"
-msgstr ""
+msgstr "VNC nu furnizează GUID"
 
 msgctxt "shortcut window"
 msgid "Viewer"
-msgstr ""
+msgstr "Vizor"
 
 msgid "Virt Viewer"
-msgstr ""
+msgstr "Virt-Viewer"
 
 msgid "Virt-Viewer connection file"
-msgstr ""
+msgstr "Fișier de conectare Virt-Viewer"
 
 #, c-format
 msgid "Virtual machine %s is not running"
-msgstr ""
+msgstr "Mașina virtuală %s nu rulează"
 
 msgid "Virtual machine graphical console"
-msgstr ""
+msgstr "Consola grafică a mașinii virtuale"
 
 msgid "Wait for domain to start"
-msgstr ""
+msgstr "Așteptați ca domeniul să pornească"
 
 #, c-format
 msgid "Waiting for display %d..."
-msgstr ""
+msgstr "Se așteaptă afișarea %d..."
 
 msgid "Waiting for guest domain to be created"
-msgstr ""
+msgstr "Se așteaptă crearea domeniului invitat"
 
 msgid "Waiting for guest domain to re-start"
-msgstr ""
+msgstr "Se așteaptă repornirea domeniului invitat"
 
 msgid "Waiting for guest domain to start"
-msgstr ""
+msgstr "Se așteaptă pornirea domeniului invitat"
 
 msgid "Waiting for libvirt to start"
-msgstr ""
+msgstr "Se așteaptă ca libvirt să pornească"
 
 msgid "Zoom _In"
-msgstr ""
+msgstr "Măr_ire"
 
 msgid "Zoom _Out"
-msgstr ""
+msgstr "Micș_orare"
 
 msgctxt "shortcut window"
 msgid "Zoom in"
-msgstr ""
+msgstr "Mărire"
 
 #, c-format
 msgid "Zoom level must be within %d-%d\n"
-msgstr ""
+msgstr "Nivelul de mărire/micșorare trebuie să fie cuprins între %d-%d\n"
 
 msgid "Zoom level of window, in percentage"
-msgstr ""
+msgstr "Nivelul de mărire al ferestrei, în procente"
 
 msgctxt "shortcut window"
 msgid "Zoom out"
-msgstr ""
+msgstr "Micșorare"
 
 msgctxt "shortcut window"
 msgid "Zoom reset"
-msgstr ""
+msgstr "Restabilirea dimensiunii inițiale"
 
 msgid "[none]"
-msgstr ""
+msgstr "[niciunul]"
 
 msgid "_About"
-msgstr ""
+msgstr "_Despre"
 
 msgid "_Auto resize"
-msgstr ""
+msgstr "Redimensionare _automată"
 
 msgid "_Cancel"
-msgstr ""
+msgstr "_Anulează"
 
 msgid "_Close"
-msgstr ""
+msgstr "În_chide"
 
 msgid "_Guest details"
-msgstr ""
+msgstr "Detalii despre _invitat"
 
 msgid "_Keyboard shortcuts"
-msgstr ""
+msgstr "_Combinații taste rapide"
 
 msgid "_Normal Size"
-msgstr ""
+msgstr "Dimensiune _normală"
 
 msgid "_OK"
-msgstr ""
+msgstr "_Ok"
 
 msgid "_Pause"
-msgstr ""
+msgstr "_Pauză"
 
 msgid "_Preferences…"
-msgstr ""
+msgstr "_Preferințe…"
 
 msgid "_Reset"
-msgstr ""
+msgstr "_Restabilește"
 
 msgid "_Save"
-msgstr ""
+msgstr "_Salvează"
 
 msgid "_Screenshot"
-msgstr ""
+msgstr "Captură de _ecran"
 
 msgid "failed to parse oVirt URI"
-msgstr ""
+msgstr "analizarea adresei URI oVirt a eșuat"
 
 msgid "label"
-msgstr ""
+msgstr "etichetă"
 
 #, c-format
 msgid "oVirt VM %s has no display"
-msgstr ""
+msgstr "oVirt VM %s nu are ecran"
 
 #, c-format
 msgid "oVirt VM %s has no host information"
-msgstr ""
+msgstr "oVirt VM %s nu are informații despre gazdă"
 
 #, c-format
 msgid "oVirt VM %s has unknown display type: %u"
-msgstr ""
+msgstr "oVirt VM %s are un tip de afișare necunoscut: %u"
 
 #, c-format
 msgid "oVirt VM %s is not running"
-msgstr ""
+msgstr "oVirt VM %s nu rulează"
 
 msgid "only SSH or UNIX socket connection supported."
-msgstr ""
+msgstr "numai conexiunea de soclu SSH sau UNIX este acceptată."
