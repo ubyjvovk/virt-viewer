@@ -11,21 +11,22 @@
 # Jean-Baptiste Holcroft <jean-baptiste@holcroft.fr>, 2016, 2019, 2020.
 # Sam Friedmann <sfriedma@redhat.com>, 2016
 # Julien Humbert <julroy67@gmail.com>, 2020.
+# Léane GRASSER <leane.grasser@proton.me>, 2024.
 msgid ""
 msgstr ""
 "Project-Id-Version: virt-viewer 9.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-02-13 15:19+0100\n"
-"PO-Revision-Date: 2020-09-28 19:29+0000\n"
-"Last-Translator: Jean-Baptiste Holcroft <jean-baptiste@holcroft.fr>\n"
-"Language-Team: French <https://translate.fedoraproject.org/projects/virt-"
-"viewer/virt-viewer/fr/>\n"
+"PO-Revision-Date: 2024-06-27 13:36+0000\n"
+"Last-Translator: Léane GRASSER <leane.grasser@proton.me>\n"
+"Language-Team: French <https://translate.fedoraproject.org/projects/"
+"virt-viewer/virt-viewer/fr/>\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n > 1;\n"
-"X-Generator: Weblate 4.2.2\n"
+"X-Generator: Weblate 5.5.5\n"
 
 #, c-format
 msgid ""
@@ -54,7 +55,7 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"Usage : %s [OPTIONS] [ID|UUID|DOMAIN-NAME]\n"
+"Utilisation : %s [OPTIONS] [ID|UUID|NOM-DE-DOMAINE]\n"
 "\n"
 
 #. translators:
@@ -63,7 +64,7 @@ msgstr ""
 #.
 #, c-format
 msgid "%s %s - %s"
-msgstr ""
+msgstr "%s %s – %s"
 
 #. translators:
 #. * This is "<ungrab accelerator> - <appname>"
@@ -75,7 +76,7 @@ msgstr ""
 #.
 #, c-format
 msgid "%s - %s"
-msgstr "%s — %s"
+msgstr "%s – %s"
 
 #, c-format
 msgid "%s version %s"
@@ -89,7 +90,7 @@ msgid "<b>Loading...</b>"
 msgstr "<b>Chargement...</b>"
 
 msgid "<never|always>"
-msgstr ""
+msgstr "<never|always>"
 
 msgid "<never|on-disconnect>"
 msgstr "<never|on-disconnect>"
@@ -148,7 +149,7 @@ msgid "Authentication was cancelled"
 msgstr "L'authentification a été annulée"
 
 msgid "Automatically resize remote framebuffer"
-msgstr ""
+msgstr "Redimensionner automatiquement le framebuffer distant"
 
 msgid "Available virtual machines"
 msgstr "Machines virtuelles disponibles"
@@ -227,17 +228,17 @@ msgstr "Échec de la création du socket UNIX : %s"
 
 #, c-format
 msgid "Current: %s"
-msgstr ""
+msgstr "Actuel : %s"
 
 msgid "Cursor display mode: 'local' or 'auto'"
-msgstr ""
+msgstr "Mode d'affichage du curseur : 'local' ou 'auto'"
 
 msgid "Customise hotkeys"
 msgstr "Personnaliser les raccourcis clavier"
 
 msgctxt "shortcut window"
 msgid "Devices"
-msgstr ""
+msgstr "Périphériques"
 
 msgid "Direct connection with no automatic tunnels"
 msgstr "Connexion directe sans tunnels automatiques"
@@ -293,7 +294,7 @@ msgstr "Par exemple, spice://foo.example.org:5900"
 
 msgctxt "shortcut window"
 msgid "Fullscreen"
-msgstr ""
+msgstr "Plein écran"
 
 msgid "GUID:"
 msgstr "GUID :"
@@ -310,7 +311,7 @@ msgstr "Le domaine invité est fermé"
 
 msgctxt "shortcut window"
 msgid "Guest input devices"
-msgstr ""
+msgstr "Appareils d'entrée de l'invité"
 
 #, c-format
 msgid "Invalid file %s: "
@@ -330,10 +331,10 @@ msgid "Loading..."
 msgstr "Chargement..."
 
 msgid "Machine"
-msgstr ""
+msgstr "Machine"
 
 msgid "More actions"
-msgstr ""
+msgstr "Plus d'actions"
 
 msgid "Name"
 msgstr "Nom"
@@ -365,7 +366,7 @@ msgid "Please add an extension to the file name"
 msgstr "Veuillez ajouter une extension au nom du fichier"
 
 msgid "Power _down"
-msgstr ""
+msgstr "_Éteindre"
 
 msgid "Preferences"
 msgstr "Préférences"
@@ -393,7 +394,7 @@ msgstr "Recharger"
 
 msgctxt "shortcut window"
 msgid "Release cursor"
-msgstr ""
+msgstr "Libérer le curseur"
 
 msgid ""
 "Remap keys format key=keymod+key e.g. F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
@@ -453,11 +454,11 @@ msgid "Selected"
 msgstr "Sélectionné"
 
 msgid "Send key"
-msgstr ""
+msgstr "Envoyer une touche"
 
 msgctxt "shortcut window"
 msgid "Send secure attention (Ctrl-Alt-Del)"
-msgstr ""
+msgstr "Envoyer une attention sécurisée (Ctrl-Alt-Suppr)"
 
 msgid "Serial"
 msgstr "Série"
@@ -466,7 +467,7 @@ msgid "Set window title"
 msgstr "Définir le titre de la fenêtre"
 
 msgid "Share client session"
-msgstr ""
+msgstr "Partager la session client"
 
 msgid "Share clipboard"
 msgstr "Partager le presse-papier"
@@ -475,21 +476,21 @@ msgid "Share folder"
 msgstr "Partager le dossier"
 
 msgid "Show / hide password text"
-msgstr ""
+msgstr "Afficher/Masquer le mot de passe"
 
 msgctxt "shortcut window"
 msgid "Smartcard insert"
-msgstr ""
+msgstr "Insérer la carte à puce"
 
 msgctxt "shortcut window"
 msgid "Smartcard remove"
-msgstr ""
+msgstr "Retirer la carte à puce"
 
 msgid "Spice"
 msgstr "Spice"
 
 msgid "Switch to fullscreen view"
-msgstr ""
+msgstr "Passer en mode Plein écran"
 
 msgid "The Fedora Translation Team"
 msgstr "L'équipe de traduction de Fedora"
@@ -505,7 +506,7 @@ msgstr "Transfert de 1 fichier..."
 
 msgctxt "shortcut window"
 msgid "USB device reset"
-msgstr ""
+msgstr "Réinitialiser le périphérique USB"
 
 msgid "USB device selection"
 msgstr "Sélection du périphérique USB"
@@ -530,7 +531,7 @@ msgid "Unable to connect to libvirt with URI: %s."
 msgstr "Impossible d’établir la connexion à libvirt avec l’URI : %s."
 
 msgid "Unable to connect to oVirt"
-msgstr ""
+msgstr "Impossible de se connecter à oVirt"
 
 #, c-format
 msgid "Unable to connect to the graphic server %s"
@@ -571,7 +572,7 @@ msgstr "VNC ne fournit pas de GUID"
 
 msgctxt "shortcut window"
 msgid "Viewer"
-msgstr ""
+msgstr "Visionneuse"
 
 msgid "Virt Viewer"
 msgstr "Virt Viewer"
@@ -613,7 +614,7 @@ msgstr "Rétréci_r"
 
 msgctxt "shortcut window"
 msgid "Zoom in"
-msgstr ""
+msgstr "Zoomer"
 
 #, c-format
 msgid "Zoom level must be within %d-%d\n"
@@ -624,11 +625,11 @@ msgstr "Niveau de zoom de la fenêtre, en pourcentage"
 
 msgctxt "shortcut window"
 msgid "Zoom out"
-msgstr ""
+msgstr "Dézoomer"
 
 msgctxt "shortcut window"
 msgid "Zoom reset"
-msgstr ""
+msgstr "Réinitialiser le zoom"
 
 msgid "[none]"
 msgstr "[aucun]"
@@ -637,7 +638,7 @@ msgid "_About"
 msgstr "_À propos"
 
 msgid "_Auto resize"
-msgstr ""
+msgstr "Redimensionner _automatiquement"
 
 msgid "_Cancel"
 msgstr "A_nnuler"
@@ -646,10 +647,10 @@ msgid "_Close"
 msgstr "_Fermer"
 
 msgid "_Guest details"
-msgstr ""
+msgstr "_Détails de l'invité"
 
 msgid "_Keyboard shortcuts"
-msgstr ""
+msgstr "_Raccourcis clavier"
 
 msgid "_Normal Size"
 msgstr "Taille _normale"
@@ -661,7 +662,7 @@ msgid "_Pause"
 msgstr "_Pause"
 
 msgid "_Preferences…"
-msgstr ""
+msgstr "_Préférences…"
 
 msgid "_Reset"
 msgstr "_Réinitialiser"
