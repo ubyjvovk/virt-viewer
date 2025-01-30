@@ -23,11 +23,11 @@ prefix = os.environ["MESON_INSTALL_PREFIX"]
 update_mime_database = sys.argv[1]
 update_icon_cache = sys.argv[2]
 update_desktop_database = sys.argv[3]
+mime_dir = os.path.join(prefix, "share", "mime")
 
-if update_mime_database != "":
+if update_mime_database != "" and os.path.isdir(mime_dir):
    print("Updating mime database")
-   subprocess.run([update_mime_database,
-                   os.path.join(prefix, "share", "mime")],
+   subprocess.run([update_mime_database, mime_dir],
                   check=True)
 else:
    print("Skipping mime database update")
