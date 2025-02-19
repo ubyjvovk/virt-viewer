@@ -195,18 +195,40 @@ enum {
     PROP_SUPPORTS_SHARE_CLIPBOARD,
 };
 
+static guint debugHandler = 0;
+static GTimeZone *debugTZ = NULL;
+
+static void vnc_log_handler(
+    const gchar *log_domain,
+    GLogLevelFlags log_level G_GNUC_UNUSED,
+    const gchar *message,
+    gpointer user_data G_GNUC_UNUSED) {
+    GDateTime *now = g_date_time_new_now(debugTZ);
+    gchar *nowstr = g_date_time_format(now, "%H:%M:%S");
+    g_printerr("%s: %s.%d: %s\n",
+               log_domain, nowstr,
+               g_date_time_get_microsecond(now)/1000,
+               message);
+    g_free(nowstr);
+    g_date_time_unref(now);
+}
+
 void
 virt_viewer_app_set_debug(gboolean debug)
 {
     if (debug) {
-        const gchar *doms = g_getenv("G_MESSAGES_DEBUG");
-        if (!doms) {
-            g_setenv("G_MESSAGES_DEBUG", G_LOG_DOMAIN, 1);
-        } else if (!g_str_equal(doms, "all") &&
-                   !strstr(doms, G_LOG_DOMAIN)) {
-            gchar *newdoms = g_strdup_printf("%s %s", doms, G_LOG_DOMAIN);
-            g_setenv("G_MESSAGES_DEBUG", newdoms, 1);
-            g_free(newdoms);
+        if (debugHandler == 0) {
+            debugHandler =
+                g_log_set_handler(G_LOG_DOMAIN,  G_LOG_LEVEL_DEBUG,
+                                  vnc_log_handler, NULL);
+            debugTZ = g_time_zone_new_utc();
+        }
+    } else {
+        if (debugHandler != 0) {
+            g_log_remove_handler(G_LOG_DOMAIN, debugHandler);
+            debugHandler = 0;
+            g_time_zone_unref(debugTZ);
+            debugTZ = NULL;
         }
     }
     doDebug = debug;
