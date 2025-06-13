@@ -759,7 +759,7 @@ virt_viewer_window_enter_fullscreen(VirtViewerWindow *self, gint monitor)
     }
 }
 
-#define MAX_KEY_COMBO 4
+#define MAX_KEY_COMBO 5
 struct keyComboDef {
     guint32 keys[MAX_KEY_COMBO];
     const char *accel_label;
@@ -768,6 +768,7 @@ struct keyComboDef {
 static const struct keyComboDef keyCombos[] = {
     { { GDK_KEY_Control_L, GDK_KEY_Alt_L, GDK_KEY_Delete, GDK_KEY_VoidSymbol }, "<Control><Alt>Delete" },
     { { GDK_KEY_Control_L, GDK_KEY_Alt_L, GDK_KEY_BackSpace, GDK_KEY_VoidSymbol }, "<Control><Alt>BackSpace" },
+    { { GDK_KEY_Control_L, GDK_KEY_Alt_L, GDK_KEY_Shift_L, GDK_KEY_Escape, GDK_KEY_VoidSymbol }, "<Control><Alt><Shift>Escape" },
     { { GDK_KEY_VoidSymbol }, "" },
     { { GDK_KEY_Control_L, GDK_KEY_Alt_L, GDK_KEY_F1, GDK_KEY_VoidSymbol }, "<Control><Alt>F1" },
     { { GDK_KEY_Control_L, GDK_KEY_Alt_L, GDK_KEY_F2, GDK_KEY_VoidSymbol }, "<Control><Alt>F2" },
