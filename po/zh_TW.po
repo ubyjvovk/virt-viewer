@@ -10,13 +10,14 @@
 # Walter Cheuk <wwycheuk@gmail.com>, 2012
 # Chester Cheng <snowlet.cheng@gmail.com>, 2016
 # Kisaragi Hiu <mail@kisaragi-hiu.com>, 2022.
+# hsu zangmen <chzang55@gmail.com>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: virt-viewer 9.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-02-13 15:19+0100\n"
-"PO-Revision-Date: 2022-08-02 17:19+0000\n"
-"Last-Translator: Kisaragi Hiu <mail@kisaragi-hiu.com>\n"
+"PO-Revision-Date: 2025-04-09 01:53+0000\n"
+"Last-Translator: hsu zangmen <chzang55@gmail.com>\n"
 "Language-Team: Chinese (Traditional) <https://translate.fedoraproject.org/"
 "projects/virt-viewer/virt-viewer/zh_TW/>\n"
 "Language: zh_TW\n"
@@ -24,7 +25,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 4.13\n"
+"X-Generator: Weblate 5.10.4\n"
 
 #, c-format
 msgid ""
@@ -32,6 +33,9 @@ msgid ""
 "Error: can't handle multiple URIs\n"
 "\n"
 msgstr ""
+"\n"
+"錯誤：無法處理多個 URI\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -39,6 +43,9 @@ msgid ""
 "No ID|UUID|DOMAIN-NAME was specified for '%s'\n"
 "\n"
 msgstr ""
+"\n"
+"未指定 '%s' 的 ID|UUID|DOMAIN-NAME\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -46,6 +53,9 @@ msgid ""
 "Usage: %s [OPTIONS] [ID|UUID|DOMAIN-NAME]\n"
 "\n"
 msgstr ""
+"\n"
+"用法：%s [選項] [ID|UUID|域名]\n"
+"\n"
 
 #. translators:
 #. * This is "<ungrab accelerator> <subtitle> - <appname>"
@@ -79,10 +89,10 @@ msgid "<b>Loading...</b>"
 msgstr "<b>載入中…</b>"
 
 msgid "<never|always>"
-msgstr ""
+msgstr "<從不|總是>"
 
 msgid "<never|on-disconnect>"
-msgstr "<never|on-disconnect>"
+msgstr "<從不|斷開連線>"
 
 msgid "A remote desktop client built with GTK-VNC, SPICE-GTK and libvirt"
 msgstr "以 GTK-VNC、SPICE-GTK 和 libvirt 所建立的遠端桌面客戶端"
@@ -95,7 +105,7 @@ msgstr "存取遠端桌面"
 
 #, c-format
 msgid "Address is too long for UNIX socket_path: %s"
-msgstr ""
+msgstr "對於 UNIX socket_path，位址太長：%s"
 
 #, c-format
 msgid "At least %s version %s is required to setup this connection"
@@ -136,17 +146,17 @@ msgid "Authentication was cancelled"
 msgstr "認證已取消"
 
 msgid "Automatically resize remote framebuffer"
-msgstr ""
+msgstr "自動調整遠端 framebuffer 的大小"
 
 msgid "Available virtual machines"
 msgstr "可用的虛擬機器"
 
 msgid "C_onnect"
-msgstr "連接(_O)"
+msgstr "連接(_C)"
 
 #, c-format
 msgid "Can't connect to channel: %s"
-msgstr ""
+msgstr "無法連線至頻道：%s"
 
 msgid "Cannot determine the connection type from URI"
 msgstr "無法從 URI 判斷連線類型"
@@ -163,7 +173,7 @@ msgid "Cannot get guest state"
 msgstr "無法取得客座端狀態"
 
 msgid "Change CD"
-msgstr "變更 CD"
+msgstr "更換 CD"
 
 msgid "Checking guest domain status"
 msgstr "正在檢查客端網域狀態"
@@ -178,59 +188,61 @@ msgid "Connect to channel unsupported."
 msgstr "不支援頻道的連接。"
 
 msgid "Connect to hypervisor"
-msgstr "連接 hypervisor"
+msgstr "連接虛擬機器管理程式"
 
 msgid "Connected to graphic server"
 msgstr "已連上圖形化伺服器"
 
 #, c-format
 msgid "Connecting to UNIX socket failed: %s"
-msgstr ""
+msgstr "連線至 UNIX socket 己失敗：%s"
 
 msgid "Connecting to graphic server"
 msgstr "正在連接圖形化伺服器"
 
 msgid "Connection _Address"
-msgstr ""
+msgstr "連線位址"
 
 msgid "Connection details"
 msgstr "連線細節"
 
 msgid "Console support is compiled out!"
-msgstr ""
+msgstr "控制台支援已編譯完成！"
 
 msgid ""
 "Copyright (C) 2007-2012 Daniel P. Berrange\n"
 "Copyright (C) 2007-2020 Red Hat, Inc."
 msgstr ""
+"Copyright (C) 2007-2012 Daniel P. Berrange\n"
+"Copyright (C) 2007-2020 Red Hat, Inc."
 
 msgid "Couldn't open oVirt session: "
-msgstr "無法開啟 oVirt session："
+msgstr "無法開啟 oVirt session： "
 
 #, c-format
 msgid "Creating UNIX socket failed: %s"
-msgstr ""
+msgstr "建立 UNIX socket 己失敗：%s"
 
 #, c-format
 msgid "Current: %s"
 msgstr "目前：%s"
 
 msgid "Cursor display mode: 'local' or 'auto'"
-msgstr ""
+msgstr "游標顯示模式：「本端」或「自動」"
 
 msgid "Customise hotkeys"
 msgstr "自訂快速鍵"
 
 msgctxt "shortcut window"
 msgid "Devices"
-msgstr ""
+msgstr "裝置"
 
 msgid "Direct connection with no automatic tunnels"
 msgstr "無自動穿隧的直接連線"
 
 #, c-format
 msgid "Display _%d"
-msgstr ""
+msgstr "顯示 _%d"
 
 msgid "Display can only be attached through libvirt with --attach"
 msgstr "顯示器僅能以 --attach 透過 libvirt 來連接"
@@ -254,19 +266,19 @@ msgid "Enable kiosk mode"
 msgstr "啟用 kiosk 模式"
 
 msgid "Failed to change CD"
-msgstr ""
+msgstr "變更 CD 失敗"
 
 msgid "Failed to connect: "
-msgstr "無法連上："
+msgstr "無法連上： "
 
 msgid "Failed to initiate connection"
 msgstr "初始化連線失敗"
 
 msgid "Failed to read stdin: "
-msgstr ""
+msgstr "讀取標準輸入失敗： "
 
 msgid "File Transfers"
-msgstr ""
+msgstr "檔案傳輸"
 
 msgid "Finding guest domain"
 msgstr "正在尋找客端網域"
@@ -279,7 +291,7 @@ msgstr "例如 spice://foo.example.org:5900"
 
 msgctxt "shortcut window"
 msgid "Fullscreen"
-msgstr ""
+msgstr "全螢幕(_F)"
 
 msgid "GUID:"
 msgstr "GUID："
@@ -296,11 +308,11 @@ msgstr "客座端網域已關閉"
 
 msgctxt "shortcut window"
 msgid "Guest input devices"
-msgstr ""
+msgstr "客戶輸入裝置"
 
 #, c-format
 msgid "Invalid file %s: "
-msgstr "無效的檔案 %s："
+msgstr "無效的檔案 %s： "
 
 #, c-format
 msgid "Invalid kiosk-quit argument: %s"
@@ -313,13 +325,13 @@ msgid "Leave fullscreen"
 msgstr "離開全螢幕"
 
 msgid "Loading..."
-msgstr ""
+msgstr "正在載入..."
 
 msgid "Machine"
-msgstr ""
+msgstr "機器"
 
 msgid "More actions"
-msgstr ""
+msgstr "更多動作"
 
 msgid "Name"
 msgstr "名稱"
@@ -328,13 +340,13 @@ msgid "Name:"
 msgstr "名稱："
 
 msgid "No ISO files in domain"
-msgstr ""
+msgstr "網域中沒有 ISO 檔案"
 
 msgid "No connection was chosen"
 msgstr "未選擇連線"
 
 msgid "No running virtual machine found"
-msgstr ""
+msgstr "未找到執行中的虛擬機器"
 
 msgid "No virtual machine was chosen"
 msgstr "未選擇虛擬機器"
@@ -346,19 +358,19 @@ msgid "Password:"
 msgstr "密碼："
 
 msgid "Please add an extension to the file name"
-msgstr ""
+msgstr "請在檔案名稱中加入副檔名"
 
 msgid "Power _down"
-msgstr ""
+msgstr "關閉電源"
 
 msgid "Preferences"
 msgstr "偏好設定"
 
 msgid "QEMU debug console"
-msgstr ""
+msgstr "QEMU 除錯主控台"
 
 msgid "QEMU human monitor"
-msgstr ""
+msgstr "QEMU 人機監控"
 
 msgid "Quit on given condition in kiosk mode"
 msgstr "於 kiosk 模式中的指定情況下離開"
@@ -373,15 +385,15 @@ msgid "Reconnect to domain upon restart"
 msgstr "重新啓動時重新連接網域"
 
 msgid "Refresh"
-msgstr ""
+msgstr "重新整理"
 
 msgctxt "shortcut window"
 msgid "Release cursor"
-msgstr ""
+msgstr "釋放游標"
 
 msgid ""
 "Remap keys format key=keymod+key e.g. F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
-msgstr ""
+msgstr "重新對應鍵格式 key=keymod+key 例如 F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
 
 msgid "Remote Viewer"
 msgstr "遠端檢視器"
@@ -393,77 +405,80 @@ msgid ""
 "can connect directly to both local and remotely hosted guest OS, optionally "
 "using SSL/TLS encryption."
 msgstr ""
+"Remote Viewer 提供用於顯示客座作業系統的圖形檢視器。 目前它支援使用 VNC 或 "
+"SPICE 通訊協定的客座作業系統。 未來可能會視使用者需求支援其他通訊協定。 "
+"檢視器可直接連線至本機或遠端託管的客座作業系統，並可選擇使用 SSL/TLS 加密。"
 
 msgid "Remote viewer client"
 msgstr "遠端檢視器客戶端"
 
 msgid "Remotely access virtual machines"
-msgstr ""
+msgstr "遠端存取虛擬機器"
 
 #, c-format
 msgid "Run '%s --help' to see a full list of available command line options\n"
-msgstr ""
+msgstr "執行「%s --help」以查看可用命令列選項的完整清單\n"
 
 msgid "Save screenshot"
-msgstr ""
+msgstr "儲存截圖"
 
 msgid "Screenshot.png"
-msgstr ""
+msgstr "Screenshot.png"
 
 #. Create the widgets
 msgid "Select USB devices for redirection"
 msgstr "選擇欲重定向的 USB 裝置"
 
 msgid "Select the virtual machine only by its ID"
-msgstr ""
+msgstr "僅依據虛擬機器的 ID 選取虛擬機器"
 
 msgid "Select the virtual machine only by its UUID"
-msgstr ""
+msgstr "僅依 UUID 選擇虛擬機器"
 
 msgid "Select the virtual machine only by its name"
-msgstr ""
+msgstr "僅依名稱選擇虛擬機器"
 
 msgid "Selected"
-msgstr ""
+msgstr "己選擇"
 
 msgid "Send key"
-msgstr ""
+msgstr "發送密鑰"
 
 msgctxt "shortcut window"
 msgid "Send secure attention (Ctrl-Alt-Del)"
-msgstr ""
+msgstr "傳送安全注意 (Ctrl-Alt-Del)"
 
 msgid "Serial"
-msgstr ""
+msgstr "序列"
 
 msgid "Set window title"
 msgstr "設定視窗標題"
 
 msgid "Share client session"
-msgstr ""
+msgstr "分享用戶端會議"
 
 msgid "Share clipboard"
-msgstr ""
+msgstr "共享剪貼簿(_S)："
 
 msgid "Share folder"
 msgstr "共享資料夾"
 
 msgid "Show / hide password text"
-msgstr ""
+msgstr "顯示/隱藏密碼文字"
 
 msgctxt "shortcut window"
 msgid "Smartcard insert"
-msgstr ""
+msgstr "插入IC智慧卡"
 
 msgctxt "shortcut window"
 msgid "Smartcard remove"
-msgstr ""
+msgstr "移除IC智慧卡"
 
 msgid "Spice"
 msgstr "Spice"
 
 msgid "Switch to fullscreen view"
-msgstr ""
+msgstr "切換到全螢幕"
 
 msgid "The Fedora Translation Team"
 msgstr "Fedora 翻譯團隊"
@@ -471,17 +486,17 @@ msgstr "Fedora 翻譯團隊"
 #, c-format
 msgid "Transferring %u file of %u..."
 msgid_plural "Transferring %u files of %u..."
-msgstr[0] ""
+msgstr[0] "正在傳輸 %u 檔案的 %u..."
 
 msgid "Transferring 1 file..."
-msgstr ""
+msgstr "正在傳輸 1 個檔案..."
 
 msgctxt "shortcut window"
 msgid "USB device reset"
-msgstr ""
+msgstr "重設 USB 裝置"
 
 msgid "USB device selection"
-msgstr "USB 裝置選取"
+msgstr "選取 USB 裝置"
 
 #, c-format
 msgid "USB redirection error: %s"
@@ -500,7 +515,7 @@ msgid "Unable to connect to libvirt with URI: %s."
 msgstr "無法透過 URI 連接 libvirt：%s。"
 
 msgid "Unable to connect to oVirt"
-msgstr ""
+msgstr "無法連線到 oVirt"
 
 #, c-format
 msgid "Unable to connect to the graphic server %s"
@@ -508,26 +523,26 @@ msgstr "無法連接圖形化伺服器 %s"
 
 #, c-format
 msgid "Unable to connect: %s"
-msgstr ""
+msgstr "無法連線：%s"
 
 #, c-format
 msgid "Unable to determine image format for file '%s'"
-msgstr ""
+msgstr "無法確定檔案 '%s' 的映像檔格式"
 
 msgctxt "Unknown UUID"
 msgid "Unknown"
-msgstr ""
+msgstr "不明"
 
 msgctxt "Unknown name"
 msgid "Unknown"
-msgstr ""
+msgstr "不明"
 
 msgid "Unspecified error"
-msgstr ""
+msgstr "未指定錯誤"
 
 #, c-format
 msgid "Unsupported authentication type %u"
-msgstr ""
+msgstr "不支援的驗證類型 %u"
 
 #, c-format
 msgid "Unsupported graphic type '%s'"
@@ -541,13 +556,13 @@ msgstr "VNC 不提供 GUID"
 
 msgctxt "shortcut window"
 msgid "Viewer"
-msgstr ""
+msgstr "檢視器"
 
 msgid "Virt Viewer"
 msgstr "Virt 檢視器"
 
 msgid "Virt-Viewer connection file"
-msgstr ""
+msgstr "Virt-Viewer 連線檔案"
 
 #, c-format
 msgid "Virtual machine %s is not running"
@@ -576,14 +591,14 @@ msgid "Waiting for libvirt to start"
 msgstr "等候 libvirt 啟動"
 
 msgid "Zoom _In"
-msgstr ""
+msgstr "放大"
 
 msgid "Zoom _Out"
-msgstr ""
+msgstr "縮小"
 
 msgctxt "shortcut window"
 msgid "Zoom in"
-msgstr ""
+msgstr "放大"
 
 #, c-format
 msgid "Zoom level must be within %d-%d\n"
@@ -594,11 +609,11 @@ msgstr "視窗放大等級，單位為百分比"
 
 msgctxt "shortcut window"
 msgid "Zoom out"
-msgstr ""
+msgstr "縮小"
 
 msgctxt "shortcut window"
 msgid "Zoom reset"
-msgstr ""
+msgstr "重設縮放大小"
 
 msgid "[none]"
 msgstr "[無]"
@@ -613,7 +628,7 @@ msgid "_Cancel"
 msgstr "取消(_C)"
 
 msgid "_Close"
-msgstr "關閉(_C)"
+msgstr "關閉 (_C)"
 
 msgid "_Guest details"
 msgstr "客戶端詳細資料(_G)"
@@ -643,7 +658,7 @@ msgid "_Screenshot"
 msgstr "螢幕截圖(_S)"
 
 msgid "failed to parse oVirt URI"
-msgstr ""
+msgstr "解析 oVirt URI 失敗"
 
 msgid "label"
 msgstr "標籤"
@@ -658,14 +673,14 @@ msgstr "oVirt VM %s 沒有主機資訊"
 
 #, c-format
 msgid "oVirt VM %s has unknown display type: %u"
-msgstr ""
+msgstr "oVirt VM %s 具有未知的顯示類型：%u"
 
 #, c-format
 msgid "oVirt VM %s is not running"
 msgstr "oVirt VM %s 沒有在執行"
 
 msgid "only SSH or UNIX socket connection supported."
-msgstr ""
+msgstr "僅支援 SSH 或 UNIX socket 連線。"
 
 #~ msgid "Disconnect"
 #~ msgstr "中斷連接"
