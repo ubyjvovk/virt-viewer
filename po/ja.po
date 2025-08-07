@@ -9,22 +9,22 @@
 # Tomoyuki KATO <tomo@dream.daynight.jp>, 2012, 2013
 # Hajime Taira <htaira@fedoraproject.org>, 2015, 2017, 2018
 # Casey Jones <nahareport@live.com>, 2018
-# Yasuhiko Kamata <belphegor@belbel.or.jp>, 2021.
+# Yasuhiko Kamata <belphegor@belbel.or.jp>, 2021, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: virt-viewer 9.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-02-13 15:19+0100\n"
-"PO-Revision-Date: 2021-12-18 07:16+0000\n"
+"PO-Revision-Date: 2025-08-07 07:53+0000\n"
 "Last-Translator: Yasuhiko Kamata <belphegor@belbel.or.jp>\n"
-"Language-Team: Japanese <https://translate.fedoraproject.org/projects/virt-"
-"viewer/virt-viewer/ja/>\n"
+"Language-Team: Japanese <https://translate.fedoraproject.org/projects/"
+"virt-viewer/virt-viewer/ja/>\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 4.10\n"
+"X-Generator: Weblate 5.12.2\n"
 
 #, c-format
 msgid ""
@@ -331,10 +331,10 @@ msgid "Loading..."
 msgstr "読み込み中..."
 
 msgid "Machine"
-msgstr ""
+msgstr "マシン"
 
 msgid "More actions"
-msgstr ""
+msgstr "その他のアクション"
 
 msgid "Name"
 msgstr "名前"
@@ -454,7 +454,7 @@ msgid "Selected"
 msgstr "選択済み"
 
 msgid "Send key"
-msgstr ""
+msgstr "キーの送信"
 
 msgctxt "shortcut window"
 msgid "Send secure attention (Ctrl-Alt-Del)"
@@ -490,7 +490,7 @@ msgid "Spice"
 msgstr "Spice"
 
 msgid "Switch to fullscreen view"
-msgstr ""
+msgstr "フルスクリーン表示に切り替える"
 
 msgid "The Fedora Translation Team"
 msgstr "Fedora 翻訳チーム"
@@ -527,7 +527,7 @@ msgid "Unable to connect to libvirt with URI: %s."
 msgstr "libvirt URI に接続できません: %s。"
 
 msgid "Unable to connect to oVirt"
-msgstr ""
+msgstr "oVirt に接続できません"
 
 #, c-format
 msgid "Unable to connect to the graphic server %s"
