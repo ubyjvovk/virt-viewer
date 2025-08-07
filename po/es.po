@@ -18,21 +18,22 @@
 # Eduardo Lima <elima@redhat.com>, 2022.
 # Emilio Herrera <ehespinosa57@gmail.com>, 2023.
 # Alejandro Lizama <alejandro.lizama@gmail.com>, 2023.
+# Javier Francisco <fserrador@gmail.com>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: virt-viewer 9.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-02-13 15:19+0100\n"
-"PO-Revision-Date: 2023-11-30 13:51+0000\n"
-"Last-Translator: Alejandro Lizama <alejandro.lizama@gmail.com>\n"
-"Language-Team: Spanish <https://translate.fedoraproject.org/projects/virt-"
-"viewer/virt-viewer/es/>\n"
+"PO-Revision-Date: 2025-04-15 20:53+0000\n"
+"Last-Translator: Javier Francisco <fserrador@gmail.com>\n"
+"Language-Team: Spanish <https://translate.fedoraproject.org/projects/"
+"virt-viewer/virt-viewer/es/>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.2.1\n"
+"X-Generator: Weblate 5.10.4\n"
 
 #, c-format
 msgid ""
@@ -90,13 +91,13 @@ msgstr "%s versión %s"
 
 #, c-format
 msgid "(Press %s to release pointer)"
-msgstr "(Presione %s para liberar el  puntero)"
+msgstr "(Presione %s para liberar el puntero)"
 
 msgid "<b>Loading...</b>"
 msgstr "<b>Cargando...</b>"
 
 msgid "<never|always>"
-msgstr "<nunca|siempre>"
+msgstr "<never|always>"
 
 msgid "<never|on-disconnect>"
 msgstr "<never|on-disconnect>"
@@ -125,13 +126,13 @@ msgid ""
 "details"
 msgstr ""
 "Por lo menos %s versión %s se requiere para establecer esta conexión, "
-"consulte %s para más información"
+"consulte %s para detalles"
 
 msgid "Attach to the local display using libvirt"
 msgstr "Añadir a la pantalla local mediante libvirt"
 
 msgid "Authentication failed."
-msgstr "Fallo de autenticación."
+msgstr "Autenticación incorrecta."
 
 #, c-format
 msgid ""
@@ -140,14 +141,14 @@ msgid ""
 "<b>%s</b>\n"
 "\n"
 msgstr ""
-"Autenticación es requerida para la conexión %s para:\n"
+"Se requiere autenticación para la conexión %s a:\n"
 "\n"
 "<b>%s</b>\n"
 "\n"
 
 #, c-format
 msgid "Authentication is required for the %s connection:\n"
-msgstr "Autenticación es requerida para la conexión %s:\n"
+msgstr "Se requiere autenticación para la conexión %s:\n"
 
 msgid "Authentication required"
 msgstr "Autenticación requerida"
@@ -166,36 +167,36 @@ msgstr "C_onectar"
 
 #, c-format
 msgid "Can't connect to channel: %s"
-msgstr "No se puede conectar con el canal: %s"
+msgstr "No puede conectar al canal: %s"
 
 msgid "Cannot determine the connection type from URI"
 msgstr "No se puede determinar el tipo de conexión de la URI"
 
 #, c-format
 msgid "Cannot determine the graphic type for the guest %s"
-msgstr "No se puede determinar el tipo de gráficos para el huésped %s"
+msgstr "No se puede determinar el tipo de gráficos para el invitado %s"
 
 #, c-format
 msgid "Cannot determine the host for the guest %s"
-msgstr "No se puede determinar el anfitrión para el huésped %s"
+msgstr "No se puede determinar el anfitrión para el invitado %s"
 
 msgid "Cannot get guest state"
-msgstr "No es posible obtener estado de huésped"
+msgstr "No se puede obtener estado de invitado"
 
 msgid "Change CD"
 msgstr "Cambiar CD"
 
 msgid "Checking guest domain status"
-msgstr "Comprobando el estatus del dominio de huéspedes"
+msgstr "Comprobando el estatus del dominio de invitado"
 
 msgid "Choose a virtual machine"
 msgstr "Elija una máquina virtual"
 
 msgid "Connect to SSH failed."
-msgstr "Falló la conexión a SSH."
+msgstr "Conexión SSH incorrecta."
 
 msgid "Connect to channel unsupported."
-msgstr "La conexión al canal no está soportada."
+msgstr "La conexión al canal no está mantenida."
 
 msgid "Connect to hypervisor"
 msgstr "Conectar al hipervisor"
@@ -205,7 +206,7 @@ msgstr "Conectado al servidor gráfico"
 
 #, c-format
 msgid "Connecting to UNIX socket failed: %s"
-msgstr "Falló la conexión a socket UNIX: %s"
+msgstr "Conexión al zócalo UNIX incorrecta: %s"
 
 msgid "Connecting to graphic server"
 msgstr "Conectando al servidor gráfico"
@@ -223,15 +224,15 @@ msgid ""
 "Copyright (C) 2007-2012 Daniel P. Berrange\n"
 "Copyright (C) 2007-2020 Red Hat, Inc."
 msgstr ""
-"Copyright (C) 2007-2012 Daniel P. Berrange\n"
-"Copyright (C) 2007-2020 Red Hat, Inc."
+"© 2007-2012 Daniel P. Berrange\n"
+"© 2007-2020 Red Hat, Inc."
 
 msgid "Couldn't open oVirt session: "
-msgstr "No se pudo abrir la sesión oVirt: "
+msgstr "No pudo abrir la sesión oVirt: "
 
 #, c-format
 msgid "Creating UNIX socket failed: %s"
-msgstr "Falló la creación del socket UNIX: %s"
+msgstr "Creación de zócalo UNIX incorrecta: %s"
 
 #, c-format
 msgid "Current: %s"
@@ -258,13 +259,13 @@ msgid "Display can only be attached through libvirt with --attach"
 msgstr "La pantalla solo puede ser unida a través de libvirt con --attach"
 
 msgid "Display debugging information"
-msgstr "Mostrar información de depuración"
+msgstr "Exhibir información de depuración"
 
 msgid "Display verbose information"
-msgstr "Mostrar información detallada"
+msgstr "Exhibir información detallada"
 
 msgid "Display version information"
-msgstr "Mostrar información de versión"
+msgstr "Exhibir información de versión"
 
 msgid "Do not ask me again"
 msgstr "No me pregunte otra vez"
@@ -276,28 +277,28 @@ msgid "Enable kiosk mode"
 msgstr "Activar el modo kiosco"
 
 msgid "Failed to change CD"
-msgstr "No se pudo cambiar el CD"
+msgstr "Cambio de CD incorrecto"
 
 msgid "Failed to connect: "
-msgstr "Error al conectarse: "
+msgstr "Conexión incorrecta: "
 
 msgid "Failed to initiate connection"
-msgstr "No se pudo inicializar la conexión"
+msgstr "Inicio de conexión incorrecto"
 
 msgid "Failed to read stdin: "
-msgstr "No se pudo leer la entrada: "
+msgstr "Lectura de entrada estándar incorrecta: "
 
 msgid "File Transfers"
-msgstr "Envíos de archivos"
+msgstr "Envíos de archivo"
 
 msgid "Finding guest domain"
-msgstr "Buscando dominio de huéspedes"
+msgstr "Buscando dominio de invitado"
 
 msgid "Folder sharing"
 msgstr "Compartición de carpeta"
 
 msgid "For example, spice://foo.example.org:5900"
-msgstr "Por ejemplo, spice://foo.example.org:5900"
+msgstr "Por ejemplo, spice://tal.ejemplo.org:5900"
 
 msgctxt "shortcut window"
 msgid "Fullscreen"
@@ -308,17 +309,17 @@ msgstr "GUID:"
 
 #, c-format
 msgid "Guest '%s' is not reachable"
-msgstr "Huésped '%s' no está alcanzable"
+msgstr "Invitado '%s' no es alcanzable"
 
 msgid "Guest Details"
-msgstr "Detalles de Huésped"
+msgstr "Detalles de Invitado"
 
 msgid "Guest domain has shutdown"
-msgstr "Dominio de huéspedes se ha apagado"
+msgstr "Dominio de invitado se ha apagado"
 
 msgctxt "shortcut window"
 msgid "Guest input devices"
-msgstr "Dipositivos de entrada de invitado"
+msgstr "Dispositivos de entrada de invitado"
 
 #, c-format
 msgid "Invalid file %s: "
@@ -338,10 +339,10 @@ msgid "Loading..."
 msgstr "Cargando..."
 
 msgid "Machine"
-msgstr "Servidor"
+msgstr "Máquina"
 
 msgid "More actions"
-msgstr "Mas acciones"
+msgstr "Más acciones"
 
 msgid "Name"
 msgstr "Nombre"
@@ -373,19 +374,19 @@ msgid "Please add an extension to the file name"
 msgstr "Por favor, agrege una extensión al nombre del archivo"
 
 msgid "Power _down"
-msgstr "Apagado"
+msgstr "Apaga_do"
 
 msgid "Preferences"
 msgstr "Preferencias"
 
 msgid "QEMU debug console"
-msgstr ""
+msgstr "Consola depuradora QEMU"
 
 msgid "QEMU human monitor"
-msgstr ""
+msgstr "Monitor humano QEMU"
 
 msgid "Quit on given condition in kiosk mode"
-msgstr "Abandonar sobre condición dada en modo kiosco"
+msgstr "Salir de la condición dada en modo kiosco"
 
 msgid "Read-only"
 msgstr "Sólo lectura"
@@ -397,18 +398,20 @@ msgid "Reconnect to domain upon restart"
 msgstr "Reconectar al dominio tras el reinicio"
 
 msgid "Refresh"
-msgstr "Actualizar"
+msgstr "Recargar"
 
 msgctxt "shortcut window"
 msgid "Release cursor"
-msgstr ""
+msgstr "Liberar cursor"
 
 msgid ""
 "Remap keys format key=keymod+key e.g. F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
 msgstr ""
+"Redistribuya formato de teclas como key=keymod+key p.ej., "
+"F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
 
 msgid "Remote Viewer"
-msgstr "Visor remoto"
+msgstr "Visor Remoto"
 
 msgid ""
 "Remote Viewer provides a graphical viewer for the guest OS display. At this "
@@ -418,10 +421,10 @@ msgid ""
 "using SSL/TLS encryption."
 msgstr ""
 "Visor remoto ofrece una aplicación gráfica para la visualización del monitor "
-"de SO huéspedes. Por el momento es compatible con los protocolos VNC y "
-"SPICE, aunque podrían añadirse otros en función de la demanda. El visor se "
-"puede conectar directamente a sistemas locales o remotos, usando cifrado SSL/"
-"TLS si es necesario."
+"de SO invitado. Por el momento admite SO invitados utilizando los protocolos "
+"VNC y SPICE. Los demás protocolos pueden añadirse en el futuro como dicte la "
+"demanda del usuario. El visor se puede conectar directamente a ambos SO "
+"locales y hospedados remotamente, opcionalmente usando cifrado SSL/TLS."
 
 msgid "Remote viewer client"
 msgstr "Cliente de visor remoto"
@@ -436,20 +439,20 @@ msgstr ""
 "comandos disponibles\n"
 
 msgid "Save screenshot"
-msgstr ""
+msgstr "Guardar pantallazo"
 
 msgid "Screenshot.png"
-msgstr "Captura_de_pantalla.png"
+msgstr "Pantallazo.png"
 
 #. Create the widgets
 msgid "Select USB devices for redirection"
 msgstr "Seleccione los dispositivos USB para redirigir"
 
 msgid "Select the virtual machine only by its ID"
-msgstr ""
+msgstr "Seleccionar la máquina virtual sólo por su ID"
 
 msgid "Select the virtual machine only by its UUID"
-msgstr ""
+msgstr "Selecciona la máquina virtual solo por su UUID"
 
 msgid "Select the virtual machine only by its name"
 msgstr "Elegir la máquina virtual sólo por nombre"
@@ -458,43 +461,43 @@ msgid "Selected"
 msgstr "Seleccionado|"
 
 msgid "Send key"
-msgstr ""
+msgstr "Enviar tecla"
 
 msgctxt "shortcut window"
 msgid "Send secure attention (Ctrl-Alt-Del)"
-msgstr ""
+msgstr "Enviar atención segura (Ctrl-Alt-Supr)"
 
 msgid "Serial"
-msgstr ""
+msgstr "Serial"
 
 msgid "Set window title"
 msgstr "Fijar el título de ventana"
 
 msgid "Share client session"
-msgstr ""
+msgstr "Compartir sesión de cliente"
 
 msgid "Share clipboard"
-msgstr ""
+msgstr "Compartir portapapeles"
 
 msgid "Share folder"
-msgstr "Compartir capr"
+msgstr "Comp. carpeta"
 
 msgid "Show / hide password text"
-msgstr ""
+msgstr "Muestra / oculta texto de contraseña"
 
 msgctxt "shortcut window"
 msgid "Smartcard insert"
-msgstr ""
+msgstr "Insertar Smartcard"
 
 msgctxt "shortcut window"
 msgid "Smartcard remove"
-msgstr ""
+msgstr "Extraer Smartcard"
 
 msgid "Spice"
 msgstr "Spice"
 
 msgid "Switch to fullscreen view"
-msgstr ""
+msgstr "Seleccionar vista a pantalla completa"
 
 msgid "The Fedora Translation Team"
 msgstr "El Equipo de Traducción de Fedora"
@@ -502,15 +505,15 @@ msgstr "El Equipo de Traducción de Fedora"
 #, c-format
 msgid "Transferring %u file of %u..."
 msgid_plural "Transferring %u files of %u..."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Transfiriendo %u archivo de %u…"
+msgstr[1] "Transfiriendo %u archivos de %u…"
 
 msgid "Transferring 1 file..."
 msgstr "Enviando un archivo..."
 
 msgctxt "shortcut window"
 msgid "USB device reset"
-msgstr ""
+msgstr "Restablecer dispositivo USB"
 
 msgid "USB device selection"
 msgstr "Selección de dispositivos USB"
@@ -521,69 +524,70 @@ msgstr "Error de redirección USB: %s"
 
 #, c-format
 msgid "Unable to authenticate with remote desktop server at %s: %s\n"
-msgstr "No se pudo autenticar con el servidor de escritorio remoto en %s: %s\n"
+msgstr ""
+"No es capaz de autenticar con el servidor de escritorio remoto en %s: %s\n"
 
 #, c-format
 msgid "Unable to authenticate with remote desktop server: %s"
-msgstr "No se puede autenticar con el servidor del escritorio remoto: %s"
+msgstr "No es capaz de autenticar con el servidor del escritorio remoto: %s"
 
 #, c-format
 msgid "Unable to connect to libvirt with URI: %s."
-msgstr "No puede conectarse a libvirt con URI: %s."
+msgstr "No es capaz de conectarse a libvirt con URI: %s."
 
 msgid "Unable to connect to oVirt"
-msgstr ""
+msgstr "No es capaz de conectar a oVirt"
 
 #, c-format
 msgid "Unable to connect to the graphic server %s"
-msgstr "No se pudo conectar al servidor gráfico %s"
+msgstr "No es capaz de conectar al servidor gráfico %s"
 
 #, c-format
 msgid "Unable to connect: %s"
-msgstr "No se pudo conectar: %s"
+msgstr "No es capaz de conectar: %s"
 
 #, c-format
 msgid "Unable to determine image format for file '%s'"
-msgstr "No se pudo inferir el formato de la imagen '%s'"
+msgstr "No es capaz de inferir el formato de la imagen para el archivo '%s'"
 
 msgctxt "Unknown UUID"
 msgid "Unknown"
-msgstr ""
+msgstr "Desconocido"
 
 msgctxt "Unknown name"
 msgid "Unknown"
-msgstr ""
+msgstr "Desconocido"
 
 msgid "Unspecified error"
 msgstr "Error no especificado"
 
 #, c-format
 msgid "Unsupported authentication type %u"
-msgstr ""
+msgstr "Tipo de autenticación %u no mantenido"
 
 #, c-format
 msgid "Unsupported graphic type '%s'"
-msgstr "Tipo de gráfico sin soporte '%s'"
+msgstr "Tipo de gráfico '%s' sin mantenido"
 
 msgid "Username:"
-msgstr "Nombre de usuario:"
+msgstr "Usuario:"
 
 msgid "VNC does not provide GUID"
 msgstr "VNC no proporciona GUID"
 
 msgctxt "shortcut window"
 msgid "Viewer"
-msgstr ""
+msgstr "Visor"
 
 msgid "Virt Viewer"
 msgstr "Virt Viewer"
 
 msgid "Virt-Viewer connection file"
-msgstr ""
+msgstr "Archivo de conexión Viert-Viewer"
 
 #, c-format
 msgid "Virtual machine %s is not running"
-msgstr "Máquina virtual %s no está en ejecución"
+msgstr "La máquina virtual %s no está en ejecución"
 
 msgid "Virtual machine graphical console"
 msgstr "Consola gráfica de la máquina virtual"
@@ -615,7 +619,7 @@ msgstr "Ale_jar"
 
 msgctxt "shortcut window"
 msgid "Zoom in"
-msgstr ""
+msgstr "Acercar zoom"
 
 #, c-format
 msgid "Zoom level must be within %d-%d\n"
@@ -626,11 +630,11 @@ msgstr "Nivel de enfoque de ventana, en porcentaje"
 
 msgctxt "shortcut window"
 msgid "Zoom out"
-msgstr ""
+msgstr "Alejar zoom"
 
 msgctxt "shortcut window"
 msgid "Zoom reset"
-msgstr ""
+msgstr "Restablecer zoom"
 
 msgid "[none]"
 msgstr "[ninguno]"
@@ -639,7 +643,7 @@ msgid "_About"
 msgstr "Acerca _de"
 
 msgid "_Auto resize"
-msgstr ""
+msgstr "_Auto-redimensionar"
 
 msgid "_Cancel"
 msgstr "_Cancelar"
@@ -648,10 +652,10 @@ msgid "_Close"
 msgstr "_Cerrar"
 
 msgid "_Guest details"
-msgstr ""
+msgstr "_Detalles del huésped"
 
 msgid "_Keyboard shortcuts"
-msgstr ""
+msgstr "Atajos de _teclado"
 
 msgid "_Normal Size"
 msgstr "Tamaño _normal"
@@ -660,13 +664,13 @@ msgid "_OK"
 msgstr "_Aceptar"
 
 msgid "_Pause"
-msgstr ""
+msgstr "_Pausar"
 
 msgid "_Preferences…"
-msgstr ""
+msgstr "_Preferencias…"
 
 msgid "_Reset"
-msgstr ""
+msgstr "_Restablecer"
 
 msgid "_Save"
 msgstr "_Guardar"
@@ -675,7 +679,7 @@ msgid "_Screenshot"
 msgstr "Captura de _pantalla"
 
 msgid "failed to parse oVirt URI"
-msgstr ""
+msgstr "incorrecto al interpretar URI oVirt"
 
 msgid "label"
 msgstr "etiqueta"
@@ -686,18 +690,18 @@ msgstr "la MV oVirt %s no tiene monitor"
 
 #, c-format
 msgid "oVirt VM %s has no host information"
-msgstr "oVirt VM %s no tiene información de host"
+msgstr "oVirt MV %s no tiene información de host"
 
 #, c-format
 msgid "oVirt VM %s has unknown display type: %u"
-msgstr ""
+msgstr "oVirt MV %s tiene tipo desconocido de pantalla: %u"
 
 #, c-format
 msgid "oVirt VM %s is not running"
 msgstr "la MV oVirt %s no está ejecutándose"
 
 msgid "only SSH or UNIX socket connection supported."
-msgstr ""
+msgstr "solo admitida conexión SSH o zócalo UNIX."
 
 #~ msgid "Unable to connnect to oVirt"
 #~ msgstr "No se pudo conectar con oVirt"
