@@ -12,22 +12,23 @@
 # yuliya <ypoyarko@redhat.com>, 2015, 2016
 # Dmitry Astankov <mornie@basealt.ru>, 2019
 # Igor Gorbounov <igor.gorbounov@gmail.com>, 2021.
+# Aleksandr Sidorenko <auroragamesproject@gmail.com>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: virt-viewer 9.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-02-13 15:19+0100\n"
-"PO-Revision-Date: 2021-02-16 20:40+0000\n"
-"Last-Translator: Igor Gorbounov <igor.gorbounov@gmail.com>\n"
-"Language-Team: Russian <https://translate.fedoraproject.org/projects/virt-"
-"viewer/virt-viewer/ru/>\n"
+"PO-Revision-Date: 2025-11-06 08:55+0000\n"
+"Last-Translator: Aleksandr Sidorenko <auroragamesproject@gmail.com>\n"
+"Language-Team: Russian <https://translate.fedoraproject.org/projects/"
+"virt-viewer/virt-viewer/ru/>\n"
 "Language: ru\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 4.4.2\n"
+"X-Generator: Weblate 5.14.1\n"
 
 #, c-format
 msgid ""
@@ -65,7 +66,7 @@ msgstr ""
 #.
 #, c-format
 msgid "%s %s - %s"
-msgstr ""
+msgstr "%s %s - %s"
 
 #. translators:
 #. * This is "<ungrab accelerator> - <appname>"
@@ -152,7 +153,7 @@ msgid "Authentication was cancelled"
 msgstr "Аутентификация была отменена"
 
 msgid "Automatically resize remote framebuffer"
-msgstr ""
+msgstr "Автоматическое изменение размера удаленного буфера кадра"
 
 msgid "Available virtual machines"
 msgstr "Доступные виртуальные машины"
@@ -214,7 +215,7 @@ msgid "Connection details"
 msgstr "Свойства подключения"
 
 msgid "Console support is compiled out!"
-msgstr "Поддержка консоли не скомпилирована."
+msgstr "Поддержка консоли не скомпилирована!"
 
 msgid ""
 "Copyright (C) 2007-2012 Daniel P. Berrange\n"
@@ -224,7 +225,7 @@ msgstr ""
 "Copyright (C) 2007-2020 Red Hat, Inc."
 
 msgid "Couldn't open oVirt session: "
-msgstr "Не удалось открыть сеанс oVirt:"
+msgstr "Не удалось открыть сеанс oVirt: "
 
 #, c-format
 msgid "Creating UNIX socket failed: %s"
@@ -242,7 +243,7 @@ msgstr "Настроить комбинации клавиш"
 
 msgctxt "shortcut window"
 msgid "Devices"
-msgstr ""
+msgstr "Устройства"
 
 msgid "Direct connection with no automatic tunnels"
 msgstr "Прямое подключение без автоматических туннелей"
@@ -276,7 +277,7 @@ msgid "Failed to change CD"
 msgstr "Ошибка изменения CD-диска"
 
 msgid "Failed to connect: "
-msgstr "Не удалось подключиться:"
+msgstr "Не удалось подключиться: "
 
 msgid "Failed to initiate connection"
 msgstr "Не удалось установить соединение"
@@ -360,8 +361,8 @@ msgstr "Виртуальная машина не выбрана"
 
 msgid "Open in full screen mode (adjusts guest resolution to fit the client)"
 msgstr ""
-"Открыть в полноэкранном режиме (разрешение гостевой системы подстраивается\n"
-" под клиент)"
+"Открыть в полноэкранном режиме "
+"(разрешение гостевой системы подстраивается под клиент)"
 
 msgid "Password:"
 msgstr "Пароль:"
@@ -398,7 +399,7 @@ msgstr "Обновить"
 
 msgctxt "shortcut window"
 msgid "Release cursor"
-msgstr ""
+msgstr "Отпустить курсор"
 
 msgid ""
 "Remap keys format key=keymod+key e.g. F1=SHIFT+CTRL+F1,1=SHIFT+F1,ALT_L=Void"
@@ -480,7 +481,7 @@ msgid "Share folder"
 msgstr "Общая папка"
 
 msgid "Show / hide password text"
-msgstr ""
+msgstr "Показать / скрыть текст пароля"
 
 msgctxt "shortcut window"
 msgid "Smartcard insert"
@@ -494,7 +495,7 @@ msgid "Spice"
 msgstr "Spice"
 
 msgid "Switch to fullscreen view"
-msgstr ""
+msgstr "Перейти в полноэкранный режим просмотра"
 
 msgid "The Fedora Translation Team"
 msgstr "Команда локализации Fedora"
@@ -511,7 +512,7 @@ msgstr "Передача 1 файла..."
 
 msgctxt "shortcut window"
 msgid "USB device reset"
-msgstr ""
+msgstr "Сброс USB-устройства"
 
 msgid "USB device selection"
 msgstr "Выбор USB-устройств"
@@ -533,7 +534,7 @@ msgid "Unable to connect to libvirt with URI: %s."
 msgstr "Невозможно подключиться к libvirt с URI: %s."
 
 msgid "Unable to connect to oVirt"
-msgstr ""
+msgstr "Невозможно подключиться к oVirt"
 
 #, c-format
 msgid "Unable to connect to the graphic server %s"
@@ -616,7 +617,7 @@ msgstr "У_меньшить"
 
 msgctxt "shortcut window"
 msgid "Zoom in"
-msgstr ""
+msgstr "Увеличить"
 
 #, c-format
 msgid "Zoom level must be within %d-%d\n"
@@ -627,11 +628,11 @@ msgstr "Масштаб окна в процентах"
 
 msgctxt "shortcut window"
 msgid "Zoom out"
-msgstr ""
+msgstr "Уменьшить"
 
 msgctxt "shortcut window"
 msgid "Zoom reset"
-msgstr ""
+msgstr "Сброс масштабирования"
 
 msgid "[none]"
 msgstr "[нет]"
