@@ -1559,6 +1559,7 @@ virt_viewer_window_enable_kiosk(VirtViewerWindow *self)
     g_return_if_fail(VIRT_VIEWER_IS_WINDOW(self));
 
     virt_viewer_timed_revealer_force_reveal(self->revealer, FALSE);
+    gtk_widget_hide(GTK_WIDGET(self->revealer));
 
     /* You probably also want X11 Option "DontVTSwitch" "true" */
     /* and perhaps more distro/desktop-specific options */
