@@ -190,5 +190,6 @@ virt_viewer_timed_revealer_force_reveal(VirtViewerTimedRevealer *self,
     virt_viewer_timed_revealer_unregister_timeout(self);
     self->fullscreen = fullscreen;
     gtk_revealer_set_reveal_child(GTK_REVEALER(self->revealer), fullscreen);
-    virt_viewer_timed_revealer_schedule_unreveal_timeout(self, 2000);
+    if (fullscreen)
+        virt_viewer_timed_revealer_schedule_unreveal_timeout(self, 2000);
 }
