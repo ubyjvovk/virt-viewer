@@ -445,6 +445,49 @@ virt_viewer_extract_xpath_string(const gchar *xmldesc,
 }
 
 
+static GStrv
+virt_viewer_extract_xpath_nodes(const gchar *xmldesc,
+                                const gchar *xpath)
+{
+    xmlDocPtr xml = NULL;
+    xmlParserCtxtPtr pctxt = NULL;
+    xmlXPathContextPtr ctxt = NULL;
+    xmlXPathObjectPtr obj = NULL;
+    GStrv ret = NULL;
+    size_t i;
+
+    pctxt = xmlNewParserCtxt();
+    if (!pctxt || !pctxt->sax)
+        goto cleanup;
+
+    xml = xmlCtxtReadDoc(pctxt, (const xmlChar *)xmldesc, "domain.xml", NULL,
+                         XML_PARSE_NOENT | XML_PARSE_NONET |
+                         XML_PARSE_NOWARNING);
+    if (!xml)
+        goto cleanup;
+
+    ctxt = xmlXPathNewContext(xml);
+    if (!ctxt)
+        goto cleanup;
+
+    obj = xmlXPathEval((const xmlChar *)xpath, ctxt);
+    if (!obj || obj->type != XPATH_NODESET || obj->nodesetval == NULL || obj->nodesetval->nodeNr < 0)
+        goto cleanup;
+
+    /* Allocate one more for NULL terminator */
+    ret = g_new0(char *, obj->nodesetval->nodeNr + 1);
+    for (i = 0; i < obj->nodesetval->nodeNr; i++) {
+        ret[i] = (gchar *)xmlNodeGetContent(obj->nodesetval->nodeTab[i]);
+    }
+
+ cleanup:
+    xmlXPathFreeContext(ctxt);
+    xmlFreeDoc(xml);
+    xmlFreeParserCtxt(pctxt);
+    return ret;
+}
+
+
 static gboolean
 virt_viewer_replace_host(const gchar *host)
 {
@@ -521,7 +564,8 @@ virt_viewer_extract_connect_info(VirtViewer *self,
                                  virDomainPtr dom,
                                  GError **error)
 {
-    char *type = NULL;
+    const char *type = NULL;
+    g_auto(GStrv) types = NULL;
     char *xpath = NULL;
     gboolean retval = FALSE;
     char *xmldesc = virDomainGetXMLDesc(dom, 0);
@@ -536,14 +580,37 @@ virt_viewer_extract_connect_info(VirtViewer *self,
     gint port = 0;
     gchar *uri = NULL;
     gboolean direct = virt_viewer_app_get_direct(app);
+    size_t i = 0;
 
     virt_viewer_app_free_connect_info(app);
 
-    if ((type = virt_viewer_extract_xpath_string(xmldesc, "string(/domain/devices/graphics/@type)")) == NULL) {
+    if ((types = virt_viewer_extract_xpath_nodes(xmldesc, "/domain/devices/graphics/@type")) == NULL ||
+        types[0] == NULL) {
         g_set_error(error,
                     VIRT_VIEWER_ERROR, VIRT_VIEWER_ERROR_FAILED,
                     _("Cannot determine the graphic type for the guest %s"), self->domkey);
 
+        goto cleanup;
+    }
+
+    for (i = 0; types[i]; i++) {
+        if (virt_viewer_app_session_type_supported(types[i])) {
+            type = types[i];
+            break;
+        }
+    }
+
+    if (!type) {
+        if (types[1] == NULL) {
+            g_set_error(error,
+                        VIRT_VIEWER_ERROR, VIRT_VIEWER_ERROR_FAILED,
+                        _("Unsupported graphic type '%s'"), types[0]);
+        } else {
+            g_autofree char *typesjoined = g_strjoinv(", ", types);
+            g_set_error(error,
+                        VIRT_VIEWER_ERROR, VIRT_VIEWER_ERROR_FAILED,
+                        _("Unsupported graphic types '%s'"), typesjoined);
+        }
         goto cleanup;
     }
 
@@ -639,7 +706,6 @@ virt_viewer_extract_connect_info(VirtViewer *self,
     g_free(host);
     g_free(transport);
     g_free(user);
-    g_free(type);
     g_free(xpath);
     g_free(xmldesc);
     g_free(uri);

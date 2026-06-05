@@ -67,6 +67,7 @@ void virt_viewer_app_trace(VirtViewerApp *self, const char *fmt, ...) G_GNUC_PRI
 void virt_viewer_app_simple_message_dialog(VirtViewerApp *self, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 gboolean virt_viewer_app_is_active(VirtViewerApp *app);
 void virt_viewer_app_free_connect_info(VirtViewerApp *self);
+gboolean virt_viewer_app_session_type_supported(const gchar *type);
 gboolean virt_viewer_app_create_session(VirtViewerApp *self, const gchar *type, GError **error);
 gboolean virt_viewer_app_activate(VirtViewerApp *self, GError **error);
 gboolean virt_viewer_app_initial_connect(VirtViewerApp *self, GError **error);

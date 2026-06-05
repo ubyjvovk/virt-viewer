@@ -1408,6 +1408,20 @@ static void notify_software_reader_cb(GObject    *gobject G_GNUC_UNUSED,
 }
 
 gboolean
+virt_viewer_app_session_type_supported(const gchar *type)
+{
+#ifdef HAVE_GTK_VNC
+    if (g_ascii_strcasecmp(type, "vnc") == 0)
+        return TRUE;
+#endif
+#ifdef HAVE_SPICE_GTK
+    if (g_ascii_strcasecmp(type, "spice") == 0)
+        return TRUE;
+#endif
+    return FALSE;
+}
+
+gboolean
 virt_viewer_app_create_session(VirtViewerApp *self, const gchar *type, GError **error)
 {
     g_return_val_if_fail(VIRT_VIEWER_IS_APP(self), FALSE);
