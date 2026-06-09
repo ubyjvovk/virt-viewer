@@ -22,9 +22,11 @@ targets:
         variables:
           RPM: skip
 
-  alpine-319: x86_64
+  almalinux-10: x86_64
 
-  alpine-320: x86_64
+  alpine-322: x86_64
+
+  alpine-323: x86_64
 
   alpine-edge: x86_64
 
@@ -41,15 +43,15 @@ targets:
         variables:
           RPM: skip
 
-  debian-11: x86_64
-
   debian-12: x86_64
+
+  debian-13: x86_64
 
   debian-sid: x86_64
 
-  fedora-39: x86_64
+  fedora-43: x86_64
 
-  fedora-40: x86_64
+  fedora-44: x86_64
 
   fedora-rawhide:
     jobs:
@@ -73,12 +75,18 @@ targets:
         variables:
           RPM: skip
 
+  opensuse-leap-16:
+    jobs:
+      - arch: x86_64
+        variables:
+          RPM: skip
+
   opensuse-tumbleweed:
     jobs:
       - arch: x86_64
         variables:
           RPM: skip
 
-  ubuntu-2204: x86_64
-
   ubuntu-2404: x86_64
+
+  ubuntu-2604: x86_64

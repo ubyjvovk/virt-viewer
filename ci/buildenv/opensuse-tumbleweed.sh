@@ -6,7 +6,7 @@
 
 function install_buildenv() {
     zypper dist-upgrade -y
-    zypper install -y \
+    zypper install -y --allow-downgrade \
            bash-completion-devel \
            ca-certificates \
            ccache \
@@ -39,10 +39,8 @@ function install_buildenv() {
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/cc
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/gcc
 }
-function export_buildenv() {
 
 export CCACHE_WRAPPERSDIR="/usr/libexec/ccache-wrappers"
 export LANG="en_US.UTF-8"
 export MAKE="/usr/bin/make"
 export NINJA="/usr/bin/ninja"
-}

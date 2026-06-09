@@ -6,6 +6,7 @@ packages:
   - gcc
   - gettext
   - glib2
+  - glib2-native
   - gstreamer-plugins-bad-free
   - gstreamer-plugins-good
   - gtk3

@@ -5,44 +5,39 @@
 # https://gitlab.com/libvirt/libvirt-ci
 
 function install_buildenv() {
-    dnf update -y
-    dnf install -y \
+    apk update
+    apk upgrade
+    apk add \
         bash-completion \
         ca-certificates \
         ccache \
-        cppi \
         gcc \
         gettext \
         git \
-        glib2-devel \
-        glibc-devel \
-        glibc-langpack-en \
-        gtk-vnc2-devel \
-        gtk3-devel \
+        glib-dev \
+        gtk+3.0-dev \
+        gtk-vnc-dev \
         icoutils \
-        libgovirt-devel \
         libtool \
-        libvirt-devel \
-        libvirt-gobject-devel \
-        libxml2 \
-        libxml2-devel \
+        libvirt-dev \
+        libvirt-glib-dev \
+        libxml2-dev \
+        libxml2-utils \
         make \
         meson \
-        ninja-build \
-        pkgconfig \
-        rest-devel \
-        rpm-build \
-        spice-gtk3-devel \
-        vte291-devel
-    rpm -qa | sort > /packages.txt
+        musl-dev \
+        pkgconf \
+        rest1-dev \
+        samurai \
+        spice-gtk-dev \
+        vte3-dev
+    apk list --installed | sort > /packages.txt
     mkdir -p /usr/libexec/ccache-wrappers
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/cc
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/gcc
 }
-function export_buildenv() {
 
 export CCACHE_WRAPPERSDIR="/usr/libexec/ccache-wrappers"
 export LANG="en_US.UTF-8"
 export MAKE="/usr/bin/make"
 export NINJA="/usr/bin/ninja"
-}

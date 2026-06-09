@@ -67,11 +67,11 @@ stages:
 
 include: '/ci/gitlab.yml'
 
-.codestyle_job:
+codestyle_job:
   extends:
     - .gitlab_native_build_job
   needs:
-    - job: x86_64-centos-stream-8-container
+    - job: x86_64-centos-stream-9-container
       optional: true
   stage: sanity_checks
   script:
@@ -79,5 +79,5 @@ include: '/ci/gitlab.yml'
     - meson build || (cat build/meson-logs/meson-log.txt && exit 1)
     - meson test -C build --suite syntax-check --no-rebuild || (cat build/meson-logs/testlog.txt && exit 1)
   variables:
-    TARGET_BASE_IMAGE: quay.io/centos/centos:stream8
-    NAME: centos-stream-8
+    TARGET_BASE_IMAGE: quay.io/centos/centos:stream9
+    NAME: centos-stream-9
