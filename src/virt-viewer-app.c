@@ -983,7 +983,7 @@ virt_viewer_app_set_window_subtitle(VirtViewerApp *app,
 
     if (title != NULL) {
         VirtViewerDisplay *display = virt_viewer_window_get_display(window);
-        gchar *d = strstr(title, "%d");
+        const gchar *d = strstr(title, "%d");
         gchar *desc = NULL;
 
         if (display && VIRT_VIEWER_IS_DISPLAY_VTE(display)) {
@@ -993,9 +993,7 @@ virt_viewer_app_set_window_subtitle(VirtViewerApp *app,
         }
 
         if (d != NULL) {
-            *d = '\0';
-            subtitle = g_strdup_printf("%s%s%s", title, desc, d + 2);
-            *d = '%';
+            subtitle = g_strdup_printf("%.*s%s%s", (int)(d - title), title, desc, d + 2);
         } else
             subtitle = g_strdup_printf("%s (%s)", title, desc);
         g_free(desc);
