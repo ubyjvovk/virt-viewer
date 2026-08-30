@@ -480,3 +480,38 @@ and is unaffected by the host hotkey bindings.
 > For more on the Send key menu and how its accelerators are handled on
 > quartz, see `virt_viewer_window_send_keys()` in `src/virt-viewer-window.c`
 > and the bottom-left header bar "Send key" button.
+
+## Known issues
+
+Found by the QA pass on the packaged `Remote Viewer.app` (macOS 26.4, Apple
+silicon, `build-aux/macos/make-bundle.sh` output; full evidence and repro
+commands in `build/qa/T-0009-report.txt`). The bundle launches, connects,
+reports connection errors and quits with ⌘Q; everything below is cosmetic or
+environmental. Nothing below is fixed yet.
+
+* **Homebrew paths leak into `immodules.cache`.** Both the bundled cache and
+  the absolute-path copy the launcher writes to
+  `~/Library/Caches/org.virt-manager.remote-viewer/` still reference
+  `/opt/homebrew/Cellar/gtk+3/<version>/share/locale` as the translation
+  directory of each input module. The modules load, but their names are
+  untranslated on a machine that only has the bundle
+  (`grep -c homebrew "build/Remote Viewer.app/Contents/Resources/lib/gtk-3.0/3.0.0/immodules.cache"`
+  → 11).
+* **The main viewer window is not visually native.** It keeps the GTK
+  client-side header bar with its own minimise/maximise/close buttons instead
+  of macOS traffic lights. The connect dialog and the error dialog do get a
+  native title bar. Cosmetic only.
+* **GTK window contents are invisible to the accessibility API.** Only the
+  title bar buttons and the window title appear in the AX tree, and
+  `AXFocusedWindow` is unset, so VoiceOver and AX-driven automation cannot
+  reach the dialogs or drive the app.
+* **The connection-error dialog is placed in the screen corner.** "Unable to
+  connect to the graphic server" opens flush at the top-left of the display,
+  under the menu bar, instead of centred on the window that spawned it.
+* **A freshly built bundle may not come to the front on its first launch.**
+  The first `open "build/Remote Viewer.app"` after `make-bundle.sh` left the
+  window on another display without activating the app; every later launch
+  activated normally. Not diagnosed.
+* **Gatekeeper rejects the bundle** (`spctl --assess --type execute` →
+  `rejected`) because the signature is ad-hoc. Expected, not a defect: see
+  [Signing](#signing) for the Developer ID re-sign that fixes it.
