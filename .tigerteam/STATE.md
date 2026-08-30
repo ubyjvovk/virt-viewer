@@ -65,6 +65,11 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 — T-0002 accepted 14:20 (de70378).
 
 ## Board snapshot
+- 2026-08-30 15:05 — done 7/9 (T-0008 formula+DMG accepted). doing: T-0006
+  (opus-1, 8 min). todo: T-0009 (QA) — eligible but the supervisor does not
+  start a second opus instance while opus-1 is busy (observed: it started
+  ds-1 for it instead, which refused on capability). Expect it to start once
+  T-0006 lands; if not, `tigerteam worker run opus --once`.
 - 2026-08-30 15:02 — done: T-0001..T-0005, T-0007 (6/9). doing: T-0006
   (opus-1). todo: T-0008 (answered — PM ran make-dmg + hdiutil verify VALID
   on host; worker fixes https head URL, drops dylibbundler dep), T-0009 (QA,
