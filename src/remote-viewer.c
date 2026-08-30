@@ -254,20 +254,54 @@ remote_viewer_find_widget_by_id(GtkWidget *widget, const gchar *id)
     return found;
 }
 
-static GtkEntry *
-remote_viewer_find_connect_dialog_entry(void)
+/* The connect dialog while it is running, or NULL when it is not up: it is
+ * built and destroyed around each remote_viewer_connect_dialog() call, so it
+ * is a toplevel exactly for as long as its nested main loop runs. */
+static GtkWidget *
+remote_viewer_find_connect_dialog(void)
 {
-    GtkWidget *entry = NULL;
+    GtkWidget *window = NULL;
     GList *toplevels, *t;
 
     toplevels = gtk_window_list_toplevels();
-    for (t = toplevels; t != NULL && entry == NULL; t = t->next) {
+    for (t = toplevels; t != NULL && window == NULL; t = t->next) {
         if (remote_viewer_widget_has_id(t->data, CONNECT_DIALOG_ID))
-            entry = remote_viewer_find_widget_by_id(t->data, CONNECT_DIALOG_ENTRY_ID);
+            window = t->data;
     }
     g_list_free(toplevels);
 
+    return window;
+}
+
+static GtkEntry *
+remote_viewer_find_connect_dialog_entry(void)
+{
+    GtkWidget *window = remote_viewer_find_connect_dialog();
+    GtkWidget *entry = NULL;
+
+    if (window != NULL)
+        entry = remote_viewer_find_widget_by_id(window, CONNECT_DIALOG_ENTRY_ID);
+
     return GTK_IS_ENTRY(entry) ? GTK_ENTRY(entry) : NULL;
+}
+
+static gboolean
+remote_viewer_macos_cancel_modal(VirtViewerApp *app G_GNUC_UNUSED)
+{
+    GtkWidget *window = remote_viewer_find_connect_dialog();
+    gboolean handled = FALSE;
+
+    if (window == NULL)
+        return FALSE;
+
+    /* remote_viewer_connect_dialog() runs its own main loop, which
+     * g_application_quit() has no way of ending. Emitting "delete-event" is
+     * how the dialog's own Cancel button and window close button end it;
+     * remote_viewer_start() then returns "no connection was chosen" and
+     * GApplication::startup quits the application. */
+    g_signal_emit_by_name(window, "delete-event", NULL, &handled);
+
+    return TRUE;
 }
 
 static void
@@ -309,6 +343,7 @@ remote_viewer_init(RemoteViewer *self G_GNUC_UNUSED)
 #ifdef HAVE_GTK_MAC_INTEGRATION
     /* Before virt_viewer_macos_init(), which runs on GApplication::startup. */
     virt_viewer_macos_set_open_uri_func(remote_viewer_macos_open_uri);
+    virt_viewer_macos_set_cancel_modal_func(remote_viewer_macos_cancel_modal);
 #endif
 }
 
