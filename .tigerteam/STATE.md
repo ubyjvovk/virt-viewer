@@ -61,7 +61,7 @@ platform-guarded so Linux/Windows are untouched.
 ## Next actions
 - After the Terminal restart: `tigerteam status`; check the supervisor is alive
   (`tigerteam check`), else `tigerteam up`; arm `tigerteam events --wait`.
-- Review T-0002 when it lands (expect docs/macos.md conflict → append section;
+- **T-0002 is in review/ now** (grok, landed 14:16 — unreviewed). Review it first (expect docs/macos.md conflict → append section;
   meson.build touches near T-0005's block).
 - Review T-0005 attempt 2: require the pasted fatal-criticals run.
 - When T-0002 + T-0005 are done, T-0004 and T-0007 become eligible automatically.
