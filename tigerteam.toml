@@ -71,3 +71,18 @@ scale = 2
 # `open`/`codesign` — things the sandboxed lanes cannot. Reserved for
 # `capability: [macbuild]` tickets; other work stays sandboxed.
 sandbox_profile = ""
+# The claude engine still gates Bash on an allowlist even unsandboxed; the GUI
+# verification tickets (T-0005/6/9) need these (T-0005 blocked on it, 2026-08-30).
+allowed_tools_extra = [
+  "Bash(build/src/remote-viewer:*)", "Bash(build/src/virt-viewer:*)",
+  "Bash(./build/src/remote-viewer:*)", "Bash(build-aux/macos/*:*)",
+  "Bash(bash build-aux/macos/*:*)", "Bash(bash build/qa/*:*)", "Bash(env:*)",
+  "Bash(open:*)", "Bash(osascript:*)", "Bash(screencapture:*)",
+  "Bash(pgrep:*)", "Bash(pkill:*)", "Bash(sleep:*)", "Bash(mkdir:*)",
+  "Bash(codesign:*)", "Bash(plutil:*)", "Bash(otool:*)", "Bash(hdiutil:*)",
+  "Bash(iconutil:*)", "Bash(sips:*)", "Bash(dylibbundler:*)",
+  "Bash(install_name_tool:*)", "Bash(meson:*)", "Bash(ninja:*)",
+  "Bash(python3:*)", "Bash(ruby:*)", "Bash(brew --prefix:*)", "Bash(log show:*)",
+  "Bash(/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister:*)",
+  "Bash(du:*)", "Bash(find:*)", "Bash(cp:*)", "Bash(rm -rf build:*)",
+]
