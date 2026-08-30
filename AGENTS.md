@@ -72,3 +72,8 @@ in meson) and must not alter Linux/Windows behaviour.
   they are auto-disabled — do not try to enable them.
 - `build/` is gitignored; put QA screenshots/reports under `build/qa/`
   (preserved as artifacts by the board).
+- **Never `pkill -f <pattern>`.** Sibling workers' and the PM's command lines
+  contain the same paths and app names (`build/src/remote-viewer`,
+  `Remote Viewer.app`), so a pattern kill takes them down too (incident
+  2026-08-30: it killed another worker mid-ticket). Record the PID of every
+  process you start (`cmd & p=$!`) and `kill "$p"` that exact PID.
