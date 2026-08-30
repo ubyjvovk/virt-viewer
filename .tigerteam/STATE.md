@@ -65,6 +65,11 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 — T-0002 accepted 14:20 (de70378).
 
 ## Board snapshot
+- 2026-08-30 14:56 — done: T-0001..T-0005 (T-0004 bundle script verified on
+  host: 108 MB relocatable `Remote Viewer.app`, 0 external links, codesign
+  OK). T-0007 reworked once (cmd→Meta must be darwin-only; add, don't
+  replace, the negative test). Eligible now: T-0006 (opus/macbuild),
+  T-0007 (any), T-0008 (any). T-0009 waits on T-0007.
 - 2026-08-30 14:47 — done: T-0001, T-0002, T-0003, T-0005 (merged: 353ea74,
   de70378, f9f1243, 56c45b4; merged tree builds + 4/4 tests green). doing:
   T-0004 (codex-1, resuming opus's unexecuted script), T-0007 (ds-1). todo:
