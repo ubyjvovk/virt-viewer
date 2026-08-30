@@ -37,10 +37,34 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 — arm64 hosts skip the stack-protector probe (aarch64 guard);
   ticket criteria must not require it in the meson log.
 
+- 2026-08-30 — Operator raised lane scale (codex 2, grok 2, ds 3, opus 2).
+  Side effect seen: the pre-rename `opus` runner kept its T-0005 attempt while
+  `opus-1/2` showed idle — harmless, but scale edits mid-attempt confuse the
+  dashboard.
+- 2026-08-30 — T-0005 reworked (attempt 2): startup `Gtk-CRITICAL
+  gtk_window_add_accel_group` from the unparented off-screen GtkMenuBar;
+  pinned to `assignee: opus` (unsandboxed) so the fix is verified on a display.
+- 2026-08-30 — TCC: this PM session cannot `screencapture` (no Screen
+  Recording grant). User granted Terminal.app Screen Recording and is
+  restarting Terminal + PM session; T-0009 screenshots depend on the
+  supervisor's terminal having that grant.
+- 2026-08-30 — docs/macos.md is created independently by several tickets
+  (T-0001, T-0003, T-0005…); accept conflicts are resolved by keeping the
+  full doc and appending the new section. Expect the same for T-0002/T-0005.
+
 ## Board snapshot
+- 2026-08-30 14:15 — done: T-0001, T-0003. doing: T-0002 (grok). todo: T-0005
+  (rework, opus), T-0004 (waits T-0002), T-0006/7/8/9 (deps). Merges landed on
+  `mac-port`: 353ea74 (T-0001), f9f1243 (T-0003).
 - 2026-08-30 14:05 — board created; T-0001..T-0009 in todo/; Seatbelt build+test verified green; fleet released (`tigerteam up` was already running), events --wait armed.
 
 ## Next actions
+- After the Terminal restart: `tigerteam status`; check the supervisor is alive
+  (`tigerteam check`), else `tigerteam up`; arm `tigerteam events --wait`.
+- Review T-0002 when it lands (expect docs/macos.md conflict → append section;
+  meson.build touches near T-0005's block).
+- Review T-0005 attempt 2: require the pasted fatal-criticals run.
+- When T-0002 + T-0005 are done, T-0004 and T-0007 become eligible automatically.
 - Review landings oldest-first; after T-0002 + T-0005 land, promote QA T-0009.
 
 ## How to resume
