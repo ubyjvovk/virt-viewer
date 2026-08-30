@@ -298,11 +298,28 @@ wrapped in `#ifdef HAVE_GTK_MAC_INTEGRATION`.
   release-cursor hotkey.
 * **Quartz accelerators.** GTK renders accelerators the Cocoa way, so
   `<Control>` accelerators are shown and handled as ⌘ combinations.
-* **Quit / ⌘Q.** Quitting from the application menu goes through the normal
-  `virt_viewer_app_maybe_quit()` path, so the "Do you want to close the
-  session?" confirmation still appears and cancelling it really does cancel.
-  Cocoa's own termination is always vetoed; the app exits through
-  `g_application_quit()` instead.
+* **Quit / ⌘Q.** What quitting does depends on whether there is a session:
+
+  * **A session is open** (a connection is up or being made) — the normal
+    `virt_viewer_app_maybe_quit()` path, so the "Do you want to close the
+    session?" confirmation still appears and cancelling it really does cancel.
+    A second ⌘Q while that confirmation is up is ignored rather than stacking
+    another copy of it.
+  * **No session** (typically the connect dialog, but also after a connection
+    has ended) — there is nothing to ask about, so the application quits
+    straight away. The connect dialog runs a nested main loop of its own,
+    which `g_application_quit()` cannot unwind; it is therefore cancelled
+    first, exactly as its Cancel button and its window close button do, and
+    `remote_viewer_start()` then returns "no connection was chosen" and the
+    application exits. Without that step the process would be left running
+    with no windows and no way to reach it.
+
+  Either way Cocoa's own termination is vetoed and the application exits
+  through `g_application_quit()`, so the shutdown path is the same one the
+  in-window Quit item and the window close button take. One visible
+  consequence of the veto: a scripted `tell application "Remote Viewer" to
+  quit` gets a "User canceled" (-128) reply from Cocoa even though the
+  application does quit.
 * **About.** The application menu's About item opens the usual About dialog.
 * **Dock reopen.** Activating the app from the Dock un-minimizes any window
   the user had minimized.
@@ -420,6 +437,11 @@ only as a last resort.
 * Opening a URL cold (nothing running) briefly shows the connect dialog before
   the Apple event arrives and fills it in: the dialog is opened from
   `GApplication::startup`, which runs before Cocoa delivers the launch event.
+* ⌘Q pressed while the "Unable to connect to the graphic server" dialog is up
+  asks the "Do you want to close the session?" question — the failed session
+  object still exists at that point — and confirming it does not take effect
+  until that dialog has been dismissed, after which the connect dialog comes
+  back. Quitting from the connect dialog then works normally.
 * Building with `-Dmacos_integration=disabled` (or on a machine without the
   library) produces a working application with the plain GTK behaviour: menus
   only in the header bar, and no macOS menu bar.

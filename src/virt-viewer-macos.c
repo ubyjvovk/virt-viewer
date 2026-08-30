@@ -43,19 +43,45 @@ static GtkWidget *virt_viewer_macos_current_menubar;
 /* Set by virt_viewer_macos_set_open_uri_func(); NULL in binaries that do not
  * take a connection URI on the command line (virt-viewer). */
 static VirtViewerMacosOpenUriFunc virt_viewer_macos_open_uri_func;
+/* Set by virt_viewer_macos_set_cancel_modal_func(); NULL in binaries that run
+ * no nested main loop of their own (virt-viewer). */
+static VirtViewerMacosCancelModalFunc virt_viewer_macos_cancel_modal_func;
 
 static gboolean
 virt_viewer_macos_block_termination(GtkosxApplication *osxapp G_GNUC_UNUSED,
                                     gpointer opaque)
 {
+    /* ⌘Q pressed again while the confirmation below is up: one question is
+     * enough, and a second one would stack on top of the first. */
+    static gboolean asking = FALSE;
     VirtViewerApp *app = VIRT_VIEWER_APP(opaque);
 
-    virt_viewer_app_maybe_quit(app, virt_viewer_app_get_main_window(app));
+    if (asking)
+        return TRUE;
 
-    /* Always veto Cocoa's own termination: virt_viewer_app_maybe_quit() may
-     * put up a modal confirmation, and when the user confirms it calls
-     * g_application_quit() which unwinds the GTK main loop for us. Letting
-     * Cocoa terminate instead would skip that shutdown path entirely. */
+    if (virt_viewer_app_has_session(app)) {
+        /* A connection is up (or being made): the regular quit path, which
+         * asks before dropping it and closes the session on the way out. */
+        asking = TRUE;
+        virt_viewer_app_maybe_quit(app, virt_viewer_app_get_main_window(app));
+        asking = FALSE;
+    } else {
+        /* Nothing is connected, so there is no session to ask about — quit
+         * outright. The application may be parked in a nested main loop (in
+         * remote-viewer, the connect dialog), which g_application_quit()
+         * cannot unwind: without cancelling that loop first the process would
+         * be left running with no windows. */
+        if (virt_viewer_macos_cancel_modal_func != NULL)
+            virt_viewer_macos_cancel_modal_func(app);
+
+        g_application_quit(G_APPLICATION(app));
+    }
+
+    /* Always veto Cocoa's own termination: quitting is driven from the GLib
+     * side, whether that is virt_viewer_app_maybe_quit() putting up a modal
+     * confirmation first or the direct g_application_quit() above. Letting
+     * Cocoa terminate instead would skip that shutdown path entirely, losing
+     * the saved configuration and an orderly session close. */
     return TRUE;
 }
 
@@ -140,6 +166,21 @@ virt_viewer_macos_set_open_uri_func(VirtViewerMacosOpenUriFunc func)
 }
 
 /**
+ * virt_viewer_macos_set_cancel_modal_func:
+ * @func: (nullable): the handler, or %NULL to remove the current one
+ *
+ * Install the handler run when macOS asks the application to quit while no
+ * session is open, to make any nested main loop the application is sitting in
+ * return. Must be called before virt_viewer_macos_init(). There is one Cocoa
+ * application per process, so the handler is process-wide.
+ */
+void
+virt_viewer_macos_set_cancel_modal_func(VirtViewerMacosCancelModalFunc func)
+{
+    virt_viewer_macos_cancel_modal_func = func;
+}
+
+/**
  * virt_viewer_macos_spawn_uri:
  * @uri: a connection URI or a path to a `.vv` file
  * @error: (nullable): return location for a #GError
@@ -179,8 +220,8 @@ virt_viewer_macos_spawn_uri(const gchar *uri, GError **error)
  *
  * Set up the macOS application-wide integration: Quartz accelerators (so GTK
  * renders accelerators as ⌘ combinations in the Cocoa menu bar), the app menu
- * About item, Quit/Cmd+Q routed through the regular quit path, the Dock
- * reopen handler and the URL/document open handler.
+ * About item, Quit/Cmd+Q (see virt_viewer_macos_block_termination()), the
+ * Dock reopen handler and the URL/document open handler.
  *
  * Must be called before the first #VirtViewerWindow is created, because a
  * window installs its menu bar — and with it calls gtkosx_application_ready()
