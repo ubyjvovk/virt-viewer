@@ -48,12 +48,11 @@ hand over: its menus are `GtkMenuButton` popovers in the header bar. Each
 models and passes it to `virt_viewer_macos_window_set_menubar()`, which mirrors
 it into the Cocoa menu bar.
 
-That extra bar *is* packed into the window (as an overlay child of
-`viewer-overlay`), but it is hidden and marked `no-show-all`, so it is never
-drawn. It has to have the `GtkWindow` as an ancestor for two reasons:
-gtk-mac-integration installs the mirrored menu accelerators on
-`gtk_widget_get_toplevel()` of the bar, which must be a real `GtkWindow`; and
-being inside the `GtkApplicationWindow` is what lets the bar's items resolve
+That extra bar is packed hidden under the window as an overlay child of
+`viewer-overlay` and marked `no-show-all`, so it is never drawn. Packing it
+there makes `gtk_widget_get_toplevel()` return the real `GtkWindow`, allowing
+gtk-mac-integration to install the mirrored menu accelerators on that window.
+Being inside the `GtkApplicationWindow` also lets the bar's items resolve
 their `win.*` and `app.*` actions, exactly as the header bar popovers do.
 
 Because there is one Cocoa menu bar but one `GtkMenuBar` per window, the menu
