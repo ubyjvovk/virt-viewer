@@ -37,6 +37,9 @@ export PKG_CONFIG_PATH="${BREW_PREFIX}/opt/libxml2/lib/pkgconfig:${BREW_PREFIX}/
 # Relative to Contents/Resources/lib and to $BREW_PREFIX/lib alike.
 PIXBUF_SUB="gdk-pixbuf-2.0/2.10.0"
 GTK_SUB="gtk-3.0/3.0.0"
+# The one LC_RPATH every binary in the bundle gets: handed to dylibbundler as
+# -p, and deduplicated afterwards.
+RPATH="@executable_path/../Resources/lib/"
 
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -103,7 +106,7 @@ msg "Bundling shared libraries with dylibbundler"
     # when it cannot resolve a dependency, and a hidden prompt is a hang.
     dylibbundler -od -b "${bundle_targets[@]}" \
         -d Contents/Resources/lib/ \
-        -p @executable_path/../Resources/lib/ \
+        -p "$RPATH" \
         -s "$BREW_PREFIX/lib"
 )
 
@@ -137,10 +140,12 @@ fi
 # dylibbundler rewrites the copied .so files: the query tools dlopen() each
 # module, which only works while its original rpaths are still valid.
 #
-# Both caches are written with module paths relative to the cache file itself.
-# gdk-pixbuf (gdk_pixbuf_io_init) and GTK resolve a relative entry against the
-# directory holding the cache, which is what makes the bundle relocatable —
-# absolute paths would be baked to wherever the bundle happened to be built.
+# Both caches are written with module paths relative to the cache file itself,
+# so that nothing in the bundle is tied to where it was built. Neither
+# gdk-pixbuf nor GTK resolves such an entry against the cache file, though —
+# both hand it straight to g_module_open(), where dlopen() would look it up
+# relative to the process's working directory. The launcher therefore turns
+# these caches into absolute ones at startup; see "Writing the launcher" below.
 relativize_cache() {
     local abs_cache="$1" strip_prefix="$2" out="$3"
     python3 - "$abs_cache" "$strip_prefix" "$out" <<'PY'
@@ -190,7 +195,7 @@ if [ "${#module_targets[@]}" -gt 0 ]; then
         # dylibs from the first pass and must not be erased.
         dylibbundler -of -b "${module_targets[@]}" \
             -d Contents/Resources/lib/ \
-            -p @executable_path/../Resources/lib/ \
+            -p "$RPATH" \
             -s "$BREW_PREFIX/lib"
     )
 fi
@@ -204,6 +209,26 @@ for module in "${module_files[@]}"; do
         install_name_tool -id "@loader_path/$(basename "$module")" "$APP_DIR/$module"
     fi
 done
+
+# dylibbundler can leave a binary carrying its -p rpath twice — librsvg's
+# pixbuf loader is one. dyld tolerates that in an executable but refuses to
+# dlopen() a module that has it ("duplicate LC_RPATH"), and losing the SVG
+# loader loses every symbolic icon in the UI, which aborts GTK the first time
+# it has to draw one. Drop the extra copies; -delete_rpath removes one per
+# call.
+msg "Removing duplicate LC_RPATH entries"
+count_rpaths() {
+    otool -l "$1" | awk '$1 == "cmd" && $2 == "LC_RPATH" { getline; getline; print $2 }' \
+        | grep -c -x -F -- "$RPATH" || true
+}
+while IFS= read -r binary; do
+    n="$(count_rpaths "$binary")"
+    while [ "$n" -gt 1 ]; do
+        install_name_tool -delete_rpath "$RPATH" "$binary"
+        n=$((n - 1))
+    done
+done < <(find "$APP_DIR" \
+    \( -name '*.dylib' -o -name '*.so' -o -path '*/MacOS/*' \) -type f)
 
 msg "Checking that nothing links outside the bundle"
 external="$(find "$APP_DIR" \
@@ -314,7 +339,8 @@ printf 'APPL????' > "$CONTENTS_DIR/PkgInfo"
 # dlopen() module caches are located through GDK_PIXBUF_MODULE_FILE and
 # GTK_IM_MODULE_FILE, which must hold absolute paths and therefore cannot be
 # baked into Info.plist's LSEnvironment in a relocatable app. The launcher
-# resolves them from its own location at startup. Everything else the app needs
+# resolves them from its own location at startup — including the module paths
+# inside them. Everything else the app needs
 # (locale, XDG_DATA_DIRS, GSETTINGS_SCHEMA_DIR) is derived inside the binary by
 # virt_viewer_util_init(), so the launcher stays this small.
 msg "Writing the launcher"
@@ -328,6 +354,29 @@ res="$(cd -- "$here/../Resources" && pwd -P)"
 export GDK_PIXBUF_MODULE_FILE="$res/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
 export GTK_IM_MODULE_FILE="$res/lib/gtk-3.0/3.0.0/immodules.cache"
 
+# The bundled caches name their modules relative to themselves, which keeps the
+# bundle relocatable but is not something gdk-pixbuf or GTK knows how to
+# resolve: both pass the entry to dlopen(), which reads it relative to the
+# working directory and fails. Rewrite the two caches with absolute paths into
+# a per-user cache directory on every launch, so that moving the bundle simply
+# regenerates them. If that directory is not usable, fall back to the bundled
+# caches: SVG icons and non-default input methods are then unavailable, which
+# is a degraded UI rather than no application.
+cachedir="${XDG_CACHE_HOME:-$HOME/Library/Caches}/org.virt-manager.remote-viewer"
+if mkdir -p "$cachedir" 2>/dev/null; then
+    absolutize() { # <bundled cache> <relative dir the entries start with> <output>
+        local dir
+        dir="$(dirname -- "$1")"
+        sed -e "s|\"$2/|\"$dir/$2/|g" -- "$1" > "$3" 2>/dev/null
+    }
+    if absolutize "$GDK_PIXBUF_MODULE_FILE" loaders "$cachedir/loaders.cache"; then
+        export GDK_PIXBUF_MODULE_FILE="$cachedir/loaders.cache"
+    fi
+    if absolutize "$GTK_IM_MODULE_FILE" immodules "$cachedir/immodules.cache"; then
+        export GTK_IM_MODULE_FILE="$cachedir/immodules.cache"
+    fi
+fi
+
 # LaunchServices may append a -psn_0_... process serial number argument, which
 # remote-viewer's option parser would reject.
 case "${1-}" in
@@ -339,6 +388,17 @@ LAUNCHER
 chmod 0755 "$MACOS_DIR/remote-viewer-launcher"
 
 # ------------------------------------------------------------------- sign ----
+
+# Signing goes inside out. `codesign --deep` descends into nested *bundles*,
+# but the libraries and modules here are loose Mach-O files, which it only
+# seals as resources — and every one of them has had its Homebrew signature
+# invalidated by install_name_tool. On arm64 dyld kills the process outright
+# the first time it dlopen()s a module whose signature does not match, so each
+# file gets its own ad-hoc signature first.
+msg "Ad-hoc signing the bundled libraries and modules"
+while IFS= read -r binary; do
+    codesign --force --sign - "$binary" 2>/dev/null || die "could not sign $binary"
+done < <(find "$APP_DIR" \( -name '*.dylib' -o -name '*.so' \) -type f)
 
 msg "Ad-hoc signing the bundle"
 codesign --force --deep --sign - "$APP_DIR"
