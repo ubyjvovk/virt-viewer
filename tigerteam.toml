@@ -11,7 +11,7 @@ artifact_globs = ["build/qa/*.png", "build/qa/*.txt"]
 # ui_port = 8383
 
 [workers]
-max_concurrent = 5
+max_concurrent = 6
 env_passthrough = ["DEEPINFRA_KEY"]   # names only, never values
 # env_passthrough = ["DEEPINFRA_KEY"]   # names only, never values
 # engine = "claude"
@@ -45,19 +45,19 @@ model = "gpt-5.6-sol"
 max_complexity = 3
 capabilities = ["frontier"]
 ticket_timeout_s = 5400
-scale = 1
+scale = 2
 
 [worker.grok]
 engine = "grok"
 max_complexity = 3
-scale = 1
+scale = 2
 
 [worker.ds]
 engine = "pi"
 max_complexity = 2
 model = "deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731"
 env_passthrough = ["DEEPINFRA_KEY"]
-scale = 1
+scale = 3
 
 [worker.opus]
 engine = "claude"
@@ -65,7 +65,7 @@ model = "opus"
 login_auth = true
 max_complexity = 3
 capabilities = ["frontier", "macbuild"]
-scale = 1
+scale = 2
 # Outside Seatbelt (user-authorised 2026-08-30) so this lane can launch the
 # built app / .app bundle against WindowServer, take screenshots, and run
 # `open`/`codesign` — things the sandboxed lanes cannot. Reserved for
