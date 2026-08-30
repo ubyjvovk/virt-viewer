@@ -65,6 +65,11 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 — T-0002 accepted 14:20 (de70378).
 
 ## Board snapshot
+- 2026-08-30 14:47 — done: T-0001, T-0002, T-0003, T-0005 (merged: 353ea74,
+  de70378, f9f1243, 56c45b4; merged tree builds + 4/4 tests green). doing:
+  T-0004 (codex-1, resuming opus's unexecuted script), T-0007 (ds-1). todo:
+  T-0006 (waits T-0004), T-0008 (waits T-0004), T-0009 (waits T-0004/T-0007).
+  Supervisor was restarted by the user after the Terminal restart.
 - 2026-08-30 14:15 — done: T-0001, T-0003. doing: T-0002 (grok). todo: T-0005
   (rework, opus), T-0004 (waits T-0002), T-0006/7/8/9 (deps). Merges landed on
   `mac-port`: 353ea74 (T-0001), f9f1243 (T-0003).
