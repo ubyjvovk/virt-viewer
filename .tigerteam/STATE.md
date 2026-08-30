@@ -77,6 +77,21 @@ platform-guarded so Linux/Windows are untouched.
   dlopen warnings in stderr; `--version` still fine.
 
 ## Board snapshot
+- 2026-08-30 15:40 — done 8. T-0009 attempt 2 ran on a pre-T-0006 tree (its
+  claim at 15:26 beat the 15:29 merge; my depends_on edit was overwritten by
+  the runner's kill rewrite — edit tickets only while they sit in todo/).
+  Its findings 1/2/4/5 are the T-0006 fixes; finding 3 (⌘Q + Quit menu items
+  disabled at the connect dialog) is real → **T-0010** (opus, P1, C3).
+  T-0009 reworked: merge mac-port into its branch, re-QA after T-0010.
+  Menu bar visually confirmed in T-0009-menubar.png.
+- 2026-08-30 15:30 — done 8/9. T-0006 accepted after PM host verification
+  (GUI launch alive, 0 crash reports, 0 dlopen warnings, all bundled modules
+  validly signed; screenshot shows rendered symbolic icons + expected
+  connection-error dialog). It also fixed T-0004's bundle (launcher writes
+  absolute module caches; LC_RPATH dedupe; per-module codesign). T-0009 QA
+  now depends on T-0006 and is eligible (opus). Incident: a worker's
+  `pkill -f` killed a sibling worker and a PM shell — AGENTS.md now forbids
+  pattern kills.
 - 2026-08-30 15:05 — done 7/9 (T-0008 formula+DMG accepted). doing: T-0006
   (opus-1, 8 min). todo: T-0009 (QA) — eligible but the supervisor does not
   start a second opus instance while opus-1 is busy (observed: it started

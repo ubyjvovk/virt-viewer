@@ -48,6 +48,7 @@ build/src/remote-viewer
 | VNC | Yes |
 | libvirt | Yes |
 | VTE | Yes |
+| `spice://` / `vnc://` URLs and `.vv` files | Yes, from the `.app` bundle (see "URL and file handlers") |
 | oVirt (`govirt-1.0`, `rest-1.0`) | No; auto-disabled |
 | bash-completion | No; auto-disabled |
 
@@ -134,9 +135,19 @@ environment variables:
 Both must be **absolute** paths, which rules out baking them into `Info.plist`
 as `LSEnvironment` entries: a relocatable app does not know at build time where
 it will be installed. The launcher resolves them from its own location at
-startup instead. The module paths *inside* those two caches are stored relative
-to the cache file, which both gdk-pixbuf and GTK resolve against the cache's
-directory — so the caches survive relocation too.
+startup instead.
+
+The module paths *inside* those two caches have the same problem, and neither
+gdk-pixbuf nor GTK resolves a relative entry against the cache file — both hand
+it straight to `g_module_open()`, where `dlopen()` reads it relative to the
+process's working directory and fails. `make-bundle.sh` therefore writes the
+caches with bundle-relative module paths, and the launcher rewrites them into
+absolute ones under
+`${XDG_CACHE_HOME:-~/Library/Caches}/org.virt-manager.remote-viewer/` on every
+launch, so moving the bundle regenerates them. If that directory cannot be
+created the bundled caches are used as they are; SVG icons and non-default
+input methods are then unavailable, which is a degraded UI rather than no
+application.
 
 Everything else is handled inside the binary rather than by the launcher: as
 described under "Running from a bundle" below, `virt_viewer_util_init()`
@@ -146,10 +157,18 @@ LaunchServices adds one, which the option parser would otherwise reject.
 
 ### Signing
 
-`make-bundle.sh` ad-hoc signs the result (`codesign --force --deep --sign -`)
-and verifies it. An ad-hoc signature is enough to run the app locally and to
-satisfy the hardened-runtime checks of libraries loaded from the bundle, but
-Gatekeeper will still quarantine it after a download.
+`make-bundle.sh` ad-hoc signs the result and verifies it. Signing goes inside
+out: every bundled `.dylib` and `.so` is signed individually first, then the
+bundle as a whole (`codesign --force --deep --sign -`). The individual pass is
+not optional — `--deep` descends into nested *bundles* but only seals loose
+Mach-O files as resources, and `install_name_tool` has invalidated the
+signature Homebrew shipped on each of them. On Apple silicon, dyld kills the
+process outright the first time it `dlopen()`s a module whose signature does
+not match.
+
+An ad-hoc signature is enough to run the app locally and to satisfy the
+hardened-runtime checks of libraries loaded from the bundle, but Gatekeeper
+will still quarantine it after a download.
 
 To ship the bundle, re-sign it with a Developer ID Application certificate:
 
@@ -279,11 +298,28 @@ wrapped in `#ifdef HAVE_GTK_MAC_INTEGRATION`.
   release-cursor hotkey.
 * **Quartz accelerators.** GTK renders accelerators the Cocoa way, so
   `<Control>` accelerators are shown and handled as ⌘ combinations.
-* **Quit / ⌘Q.** Quitting from the application menu goes through the normal
-  `virt_viewer_app_maybe_quit()` path, so the "Do you want to close the
-  session?" confirmation still appears and cancelling it really does cancel.
-  Cocoa's own termination is always vetoed; the app exits through
-  `g_application_quit()` instead.
+* **Quit / ⌘Q.** What quitting does depends on whether there is a session:
+
+  * **A session is open** (a connection is up or being made) — the normal
+    `virt_viewer_app_maybe_quit()` path, so the "Do you want to close the
+    session?" confirmation still appears and cancelling it really does cancel.
+    A second ⌘Q while that confirmation is up is ignored rather than stacking
+    another copy of it.
+  * **No session** (typically the connect dialog, but also after a connection
+    has ended) — there is nothing to ask about, so the application quits
+    straight away. The connect dialog runs a nested main loop of its own,
+    which `g_application_quit()` cannot unwind; it is therefore cancelled
+    first, exactly as its Cancel button and its window close button do, and
+    `remote_viewer_start()` then returns "no connection was chosen" and the
+    application exits. Without that step the process would be left running
+    with no windows and no way to reach it.
+
+  Either way Cocoa's own termination is vetoed and the application exits
+  through `g_application_quit()`, so the shutdown path is the same one the
+  in-window Quit item and the window close button take. One visible
+  consequence of the veto: a scripted `tell application "Remote Viewer" to
+  quit` gets a "User canceled" (-128) reply from Cocoa even though the
+  application does quit.
 * **About.** The application menu's About item opens the usual About dialog.
 * **Dock reopen.** Activating the app from the Dock un-minimizes any window
   the user had minimized.
@@ -308,6 +344,85 @@ bar is re-pointed at whichever window is active (`notify::is-active`). With
 several displays open, the menu bar therefore always reflects the focused
 window.
 
+### URL and file handlers
+
+The bundle registers itself with LaunchServices as a handler for two URL
+schemes and for `.vv` connection files, so that `open spice://host:port` or a
+double-clicked `.vv` file starts (or reuses) Remote Viewer.app and connects,
+exactly as `remote-viewer <argument>` does from a shell.
+
+| Declared in `Info.plist` | Value |
+| --- | --- |
+| `CFBundleURLTypes` | schemes `spice` and `vnc`, role Viewer |
+| `CFBundleDocumentTypes` | extension `vv`, MIME `application/x-virt-viewer`, UTI `org.virt-manager.virt-viewer.vv`, role Viewer, rank Owner |
+| `UTExportedTypeDeclarations` | `org.virt-manager.virt-viewer.vv`, conforming to `public.data` |
+
+The `.vv` UTI is *exported* rather than imported because virt-viewer defines
+the format; it mirrors the freedesktop MIME type in
+`data/virt-viewer-mime.xml.in`, which is what the Linux packaging registers.
+
+`vnc://` is declared without an `LSHandlerRank`, because macOS ships Screen
+Sharing.app as the system handler for that scheme and it stays the default.
+Remote Viewer only opens a `vnc://` URL if the user picks it explicitly (Finder
+→ Get Info → Open with, or an equivalent LaunchServices change).
+
+#### How a request reaches the connection code
+
+Cocoa delivers both kinds of request as Apple events, and hands both to the
+application delegate's `-application:openURLs:`. gtk-mac-integration implements
+that method and emits its `NSApplicationOpenFile` signal once per URL — despite
+the name, for URL-scheme opens as well as document opens. `src/virt-viewer-macos.c`
+connects to that signal, turns the `file://` URI of a document back into a local
+path, and calls the handler that `remote-viewer` installed with
+`virt_viewer_macos_set_open_uri_func()`.
+
+What `remote-viewer` then does depends on whether it already has a connection:
+
+* **No connection yet** — the application is sitting in the connect dialog's
+  nested main loop (this is also the state right after LaunchServices launches
+  it *because* of the URL). The URI is written into the dialog's address entry
+  and the entry is activated, so it follows exactly the path a typed-in address
+  takes, including the dialog reappearing with an error message if the
+  connection fails.
+* **Already connected** — a `VirtViewerApp` drives exactly one connection, so
+  the new URI is started in a second process
+  (`virt_viewer_macos_spawn_uri()` re-runs the bundle's own executable with the
+  URI as its argument).
+
+#### Single-instance behaviour
+
+There is no single-instance behaviour, by design. `remote-viewer` is a
+`G_APPLICATION_NON_UNIQUE` application on every platform: `remote-viewer URI`
+twice gives two processes on Linux too. macOS could not do otherwise anyway —
+GApplication's uniqueness is implemented over D-Bus, which is not present here.
+
+The practical consequence is that opening a second URL while a connection is
+up leaves you with two Remote Viewer processes, both in the Dock under one
+icon. Quitting one does not quit the other.
+
+#### Registering the app during development
+
+LaunchServices only knows about bundles it has seen. A freshly built
+`build/Remote Viewer.app` has never been in `/Applications`, so register it by
+hand before testing:
+
+```sh
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$lsregister" -f "$PWD/build/Remote Viewer.app"
+```
+
+Then check which application actually claims a scheme or a file:
+
+```sh
+mdls -name kMDItemContentType build/qa/test.vv
+"$lsregister" -dump | grep -B 5 -A 5 'spice:'
+```
+
+Rebuilding the bundle in place keeps the registration; moving or renaming it
+needs another `lsregister -f`. `"$lsregister" -kill -r -domain local -domain
+user` rebuilds the whole database if it gets confused — it is slow, so use it
+only as a last resort.
+
 ### Known limitations
 
 * Accelerators defined in the `GtkAccelGroup` of `virt-viewer.ui` rather than
@@ -319,9 +434,14 @@ window.
 * Dock reopen only un-minimizes windows. It deliberately does not
   `gtk_window_present()` anything, which with several open displays would pull
   focus away from the window the user clicked on.
-* `.vv` file and `spice://` / `vnc://` URL handling is *not* part of this
-  integration; the `NSApplicationOpenFile` signal is intentionally left
-  unconnected here.
+* Opening a URL cold (nothing running) briefly shows the connect dialog before
+  the Apple event arrives and fills it in: the dialog is opened from
+  `GApplication::startup`, which runs before Cocoa delivers the launch event.
+* ⌘Q pressed while the "Unable to connect to the graphic server" dialog is up
+  asks the "Do you want to close the session?" question — the failed session
+  object still exists at that point — and confirming it does not take effect
+  until that dialog has been dismissed, after which the connect dialog comes
+  back. Quitting from the connect dialog then works normally.
 * Building with `-Dmacos_integration=disabled` (or on a machine without the
   library) produces a working application with the plain GTK behaviour: menus
   only in the header bar, and no macOS menu bar.

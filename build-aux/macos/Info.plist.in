@@ -39,7 +39,90 @@
   <true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key>
   <true/>
-  <!-- T-0006: CFBundleURLTypes (spice://, vnc://) and CFBundleDocumentTypes
-       (.vv connection files) are added by ticket T-0006. -->
+  <!-- URL schemes remote-viewer knows how to connect to. LaunchServices hands
+       these to the app as Apple events, which reach the code through
+       gtk-mac-integration's NSApplicationOpenFile signal; see
+       src/virt-viewer-macos.c and docs/macos.md ("URL and file handlers").
+
+       `vnc` is deliberately declared with role Viewer and no LSHandlerRank:
+       macOS ships Screen Sharing.app as the system handler for vnc:// and it
+       stays the default unless the user picks Remote Viewer explicitly. -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>SPICE connection</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>spice</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>VNC connection</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>vnc</string>
+      </array>
+    </dict>
+  </array>
+  <!-- .vv connection files. The UTI is exported (not imported) because
+       virt-viewer defines the format; it mirrors the freedesktop MIME type in
+       data/virt-viewer-mime.xml.in. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Virt Viewer connection file</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>remote-viewer.icns</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>vv</string>
+      </array>
+      <key>CFBundleTypeMIMETypes</key>
+      <array>
+        <string>application/x-virt-viewer</string>
+      </array>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>org.virt-manager.virt-viewer.vv</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>org.virt-manager.virt-viewer.vv</string>
+      <key>UTTypeDescription</key>
+      <string>Virt Viewer connection file</string>
+      <key>UTTypeIconFile</key>
+      <string>remote-viewer.icns</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.data</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>vv</string>
+        </array>
+        <key>public.mime-type</key>
+        <array>
+          <string>application/x-virt-viewer</string>
+        </array>
+      </dict>
+    </dict>
+  </array>
 </dict>
 </plist>

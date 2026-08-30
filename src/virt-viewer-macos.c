@@ -40,19 +40,48 @@
 static GtkWidget *virt_viewer_macos_current_menubar;
 /* Where the VirtViewerApp keeps the app-menu About item alive. */
 #define VIRT_VIEWER_MACOS_ABOUT_KEY "virt-viewer-macos-about-item"
+/* Set by virt_viewer_macos_set_open_uri_func(); NULL in binaries that do not
+ * take a connection URI on the command line (virt-viewer). */
+static VirtViewerMacosOpenUriFunc virt_viewer_macos_open_uri_func;
+/* Set by virt_viewer_macos_set_cancel_modal_func(); NULL in binaries that run
+ * no nested main loop of their own (virt-viewer). */
+static VirtViewerMacosCancelModalFunc virt_viewer_macos_cancel_modal_func;
 
 static gboolean
 virt_viewer_macos_block_termination(GtkosxApplication *osxapp G_GNUC_UNUSED,
                                     gpointer opaque)
 {
+    /* ⌘Q pressed again while the confirmation below is up: one question is
+     * enough, and a second one would stack on top of the first. */
+    static gboolean asking = FALSE;
     VirtViewerApp *app = VIRT_VIEWER_APP(opaque);
 
-    virt_viewer_app_maybe_quit(app, virt_viewer_app_get_main_window(app));
+    if (asking)
+        return TRUE;
 
-    /* Always veto Cocoa's own termination: virt_viewer_app_maybe_quit() may
-     * put up a modal confirmation, and when the user confirms it calls
-     * g_application_quit() which unwinds the GTK main loop for us. Letting
-     * Cocoa terminate instead would skip that shutdown path entirely. */
+    if (virt_viewer_app_has_session(app)) {
+        /* A connection is up (or being made): the regular quit path, which
+         * asks before dropping it and closes the session on the way out. */
+        asking = TRUE;
+        virt_viewer_app_maybe_quit(app, virt_viewer_app_get_main_window(app));
+        asking = FALSE;
+    } else {
+        /* Nothing is connected, so there is no session to ask about — quit
+         * outright. The application may be parked in a nested main loop (in
+         * remote-viewer, the connect dialog), which g_application_quit()
+         * cannot unwind: without cancelling that loop first the process would
+         * be left running with no windows. */
+        if (virt_viewer_macos_cancel_modal_func != NULL)
+            virt_viewer_macos_cancel_modal_func(app);
+
+        g_application_quit(G_APPLICATION(app));
+    }
+
+    /* Always veto Cocoa's own termination: quitting is driven from the GLib
+     * side, whether that is virt_viewer_app_maybe_quit() putting up a modal
+     * confirmation first or the direct g_application_quit() above. Letting
+     * Cocoa terminate instead would skip that shutdown path entirely, losing
+     * the saved configuration and an orderly session close. */
     return TRUE;
 }
 
@@ -85,14 +114,114 @@ virt_viewer_macos_about_activate(GtkMenuItem *item G_GNUC_UNUSED,
         virt_viewer_window_show_about(window);
 }
 
+static gboolean
+virt_viewer_macos_open_file(GtkosxApplication *osxapp G_GNUC_UNUSED,
+                            gchar *target,
+                            gpointer opaque)
+{
+    VirtViewerApp *app = VIRT_VIEWER_APP(opaque);
+    g_autofree gchar *uri = NULL;
+
+    g_debug("macOS asked the application to open %s", target ? target : "(null)");
+
+    if (virt_viewer_macos_open_uri_func == NULL || target == NULL || *target == '\0')
+        return FALSE;
+
+    /* Cocoa routes both document opens (a double-clicked .vv file) and
+     * URL-scheme opens (spice://, vnc://) through the same delegate method,
+     * and gtk-mac-integration forwards the NSURL's absoluteString — so a file
+     * arrives here as a percent-encoded file:// URI. Turn that back into a
+     * local path; everything else is a connection URI and is passed through
+     * untouched. */
+    if (g_str_has_prefix(target, "file://")) {
+        g_autoptr(GFile) file = g_file_new_for_uri(target);
+
+        uri = g_file_get_path(file);
+        if (uri == NULL) {
+            g_warning("Cannot open remote location %s", target);
+            return FALSE;
+        }
+    } else {
+        uri = g_strdup(target);
+    }
+
+    virt_viewer_macos_open_uri_func(app, uri);
+
+    return TRUE;
+}
+
+/**
+ * virt_viewer_macos_set_open_uri_func:
+ * @func: (nullable): the handler, or %NULL to remove the current one
+ *
+ * Install the handler run when macOS asks the application to open a URL or a
+ * document. Must be called before virt_viewer_macos_init(), which is where the
+ * Cocoa side is hooked up. There is one Cocoa application per process, so the
+ * handler is process-wide.
+ */
+void
+virt_viewer_macos_set_open_uri_func(VirtViewerMacosOpenUriFunc func)
+{
+    virt_viewer_macos_open_uri_func = func;
+}
+
+/**
+ * virt_viewer_macos_set_cancel_modal_func:
+ * @func: (nullable): the handler, or %NULL to remove the current one
+ *
+ * Install the handler run when macOS asks the application to quit while no
+ * session is open, to make any nested main loop the application is sitting in
+ * return. Must be called before virt_viewer_macos_init(). There is one Cocoa
+ * application per process, so the handler is process-wide.
+ */
+void
+virt_viewer_macos_set_cancel_modal_func(VirtViewerMacosCancelModalFunc func)
+{
+    virt_viewer_macos_cancel_modal_func = func;
+}
+
+/**
+ * virt_viewer_macos_spawn_uri:
+ * @uri: a connection URI or a path to a `.vv` file
+ * @error: (nullable): return location for a #GError
+ *
+ * Start a second copy of the running application bundle on @uri, as if it had
+ * been passed on the command line. A #VirtViewerApp drives exactly one
+ * connection, so this is what a request to open a second URI turns into —
+ * matching Linux, where the application is %G_APPLICATION_NON_UNIQUE and every
+ * `remote-viewer URI` is its own process.
+ *
+ * Returns: %TRUE if the process was started
+ */
+gboolean
+virt_viewer_macos_spawn_uri(const gchar *uri, GError **error)
+{
+    g_autofree gchar *executable = gtkosx_application_get_executable_path();
+    gchar *argv[3];
+
+    g_return_val_if_fail(uri != NULL, FALSE);
+
+    if (executable == NULL) {
+        g_set_error_literal(error, G_SPAWN_ERROR, G_SPAWN_ERROR_FAILED,
+                            _("Not running from an application bundle"));
+        return FALSE;
+    }
+
+    argv[0] = executable;
+    argv[1] = (gchar *)uri;
+    argv[2] = NULL;
+
+    return g_spawn_async(NULL, argv, NULL, G_SPAWN_DEFAULT, NULL, NULL, NULL, error);
+}
+
 /**
  * virt_viewer_macos_init:
  * @app: the #VirtViewerApp
  *
  * Set up the macOS application-wide integration: Quartz accelerators (so GTK
  * renders accelerators as ⌘ combinations in the Cocoa menu bar), the app menu
- * About item, Quit/Cmd+Q routed through the regular quit path, and the Dock
- * reopen handler.
+ * About item, Quit/Cmd+Q (see virt_viewer_macos_block_termination()), the
+ * Dock reopen handler and the URL/document open handler.
  *
  * Must be called before the first #VirtViewerWindow is created, because a
  * window installs its menu bar — and with it calls gtkosx_application_ready()
@@ -125,6 +254,11 @@ virt_viewer_macos_init(VirtViewerApp *app)
                      G_CALLBACK(virt_viewer_macos_block_termination), app);
     g_signal_connect(osxapp, "NSApplicationDidBecomeActive",
                      G_CALLBACK(virt_viewer_macos_did_become_active), app);
+    /* Despite the name this fires for URL opens as well as document opens:
+     * gtk-mac-integration implements -application:openURLs: and emits it once
+     * per NSURL. */
+    g_signal_connect(osxapp, "NSApplicationOpenFile",
+                     G_CALLBACK(virt_viewer_macos_open_file), app);
 }
 
 static void
