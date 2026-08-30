@@ -104,6 +104,11 @@ sequence (Ctrl+Alt+Del) to the guest. Examples:
 
   --hotkeys=release-cursor=ctrl+alt
 
+Hotkey key-names are composed of modifiers (shift, ctrl, alt, cmd or
+meta) and a non-modifier key.  On macOS, C<cmd> and C<meta> both map to the
+Command key (B<Option> is C<alt>), and hotkeys using the Command key never
+reach the guest.
+
 Note that hotkeys for which no binding is given are disabled. Although the
 hotkeys specified here are handled by the client, it is still possible to send
 these key combinations to the guest via a menu item.
@@ -158,8 +163,9 @@ A key binding combination is described by a series of key strings
 separated by '+' that must be pressed together in order to activate
 the associated action.
 
-It must be composed of modifiers (shift, ctrl or alt) and a
-non-modifier key. For example, "shift+f11".
+It must be composed of modifiers (shift, ctrl, alt, cmd or
+meta) and a non-modifier key. For example, "shift+f11".  On macOS,
+C<cmd> and C<meta> both map to the Command key (B<Option> is C<alt>).
 
 =head1 CONNECTION FILE
 

@@ -893,12 +893,15 @@ accel_key_to_keys(guint accel_key,
         {GDK_SHIFT_MASK, GDK_KEY_Shift_L},
         {GDK_CONTROL_MASK, GDK_KEY_Control_L},
         {GDK_MOD1_MASK, GDK_KEY_Alt_L},
+        {GDK_META_MASK, GDK_KEY_Meta_L},
+        {GDK_SUPER_MASK, GDK_KEY_Super_L},
     };
 
     g_warn_if_fail((accel_mods &
-                    ~(GDK_SHIFT_MASK | GDK_CONTROL_MASK | GDK_MOD1_MASK)) == 0);
+                    ~(GDK_SHIFT_MASK | GDK_CONTROL_MASK | GDK_MOD1_MASK |
+                      GDK_META_MASK | GDK_SUPER_MASK)) == 0);
 
-    keys = val = g_new(guint, G_N_ELEMENTS(modifiers) + 2); /* up to 3 modifiers, key and the stop symbol */
+    keys = val = g_new(guint, G_N_ELEMENTS(modifiers) + 2); /* all modifiers, key and the stop symbol */
     /* first, send the modifiers */
     for (i = 0; i < G_N_ELEMENTS(modifiers); i++) {
         if (accel_mods & modifiers[i].mask)

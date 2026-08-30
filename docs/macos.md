@@ -279,3 +279,38 @@ window.
 * Building with `-Dmacos_integration=disabled` (or on a machine without the
   library) produces a working application with the plain GTK behaviour: menus
   only in the header bar, and no macOS menu bar.
+## Keyboard
+
+### Default hotkeys
+
+Global hotkeys (see `--hotkeys` in the man pages) only fire while the guest
+display widget does *not* have input focus. Their defaults follow the
+upstream Ctrl+Alt combinations and are therefore awkward on a Mac keyboard:
+
+| Action | Default binding | Mac equivalent |
+| --- | --- | --- |
+| release-cursor | `ctrl+alt` | `ctrl+option` |
+| secure-attention | `ctrl+alt+del` | (via menu, below) |
+
+`--hotkeys` accepts case-insensitive modifier tokens `shift`, `ctrl`, `alt`,
+`cmd` and `meta`. On macOS only, both `cmd` and `meta` select the **Command**
+key, while **Option** is selected with `alt`. On other platforms, `cmd`
+retains its legacy meaning as an alias for `ctrl`. For example:
+
+```sh
+remote-viewer --hotkeys=release-cursor=cmd+alt+r
+```
+
+binds ⌘⌥R (spelt `cmd+alt+r`) as the release-cursor hotkey.
+
+### Sending Ctrl+Alt+Del
+
+The guest sees nothing of the host's Command key, and hotkeys containing
+`cmd`/`meta` never reach the guest. To send a key combination (such as
+Ctrl+Alt+Del for a Windows guest) to the guest, use the **Send key** menu (header bar *Send key* button):
+*Send key* → *Ctrl+Alt+Del*. This goes through the guest channel
+and is unaffected by the host hotkey bindings.
+
+> For more on the Send key menu and how its accelerators are handled on
+> quartz, see `virt_viewer_window_send_keys()` in `src/virt-viewer-window.c`
+> and the bottom-left header bar "Send key" button.
