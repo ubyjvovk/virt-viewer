@@ -37,6 +37,20 @@ enum {
 
 GQuark virt_viewer_error_quark(void);
 
+/**
+ * virt_viewer_util_get_bundle_resources_dir:
+ *
+ * Returns the path to the "Contents/Resources" directory of the current
+ * macOS application bundle, or NULL when the process is not running from
+ * inside a .app bundle (for instance a plain build or an installed
+ * binary). On non-macOS platforms this always returns NULL.
+ *
+ * The returned string is newly allocated; free it with g_free().
+ *
+ * Returns: (transfer full): the bundle resources directory, or NULL.
+ */
+gchar *virt_viewer_util_get_bundle_resources_dir(void);
+
 void virt_viewer_util_init(const char *appname);
 
 GtkBuilder *virt_viewer_util_load_ui(const char *name);
