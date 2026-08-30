@@ -163,6 +163,52 @@ codesign --verify --deep --strict --verbose=2 "build/Remote Viewer.app"
 Notarization (`xcrun notarytool submit` + `xcrun stapler staple`) is not covered
 by this script.
 
+## Distribution
+
+### Homebrew formula
+
+`build-aux/macos/virt-viewer.rb` is a head-only Homebrew formula for the
+`mac-port` branch. Install it directly from a checkout with:
+
+```sh
+brew install --HEAD --formula ./build-aux/macos/virt-viewer.rb
+```
+
+To use it from a local tap instead, create a tap and copy the formula into it:
+
+```sh
+brew tap-new local/virt-viewer
+cp build-aux/macos/virt-viewer.rb \
+   "$(brew --repository local/virt-viewer)/Formula/virt-viewer.rb"
+brew install --HEAD local/virt-viewer/virt-viewer
+```
+
+The formula builds and installs the command-line `remote-viewer` and
+`virt-viewer` programs. It does not create the standalone application bundle.
+
+### Disk image
+
+After building the application bundle, package it in a compressed DMG with:
+
+```sh
+bash build-aux/macos/make-bundle.sh
+bash build-aux/macos/make-dmg.sh
+```
+
+By default the input is `build/Remote Viewer.app` and the output is
+`build/RemoteViewer-<version>.dmg`, where `<version>` comes from the bundle's
+`Info.plist`. The disk image contains the application and an `Applications`
+symlink for drag-and-drop installation. To use other paths, pass the app bundle
+and output DMG as the first and second arguments:
+
+```sh
+bash build-aux/macos/make-dmg.sh \
+    "/path/to/Remote Viewer.app" "/path/to/RemoteViewer.dmg"
+```
+
+Creating the DMG does not add Developer ID signing or notarization; the
+signing notes above still apply to a distributed build.
+
 ## Continuous integration
 
 GitHub Actions workflow `.github/workflows/macos.yml` builds and tests every
