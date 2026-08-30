@@ -77,6 +77,14 @@ platform-guarded so Linux/Windows are untouched.
   dlopen warnings in stderr; `--version` still fine.
 
 ## Board snapshot
+- 2026-08-30 15:58 — done 9 (T-0010 Quit fix accepted after PM host check:
+  AX Quit enabled=true, Cocoa quit request exits, 0 crash reports). Only
+  T-0009 (QA re-run on current tree, opus) remains. Follow-up candidates from
+  worker notes, NOT ticketed yet: (a) message dialogs transient for the hidden
+  main window never become Cocoa key window (no keyboard input); (b) ⌘Q while
+  the "Unable to connect" dialog is up takes the has-session branch; (c)
+  `po/POTFILES` lacks `src/virt-viewer-macos.c`; (d) GTK header bar instead of
+  native traffic lights (cosmetic); (e) AX tree empty for GTK content.
 - 2026-08-30 15:40 — done 8. T-0009 attempt 2 ran on a pre-T-0006 tree (its
   claim at 15:26 beat the 15:29 merge; my depends_on edit was overwritten by
   the runner's kill rewrite — edit tickets only while they sit in todo/).
