@@ -65,6 +65,10 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 — T-0002 accepted 14:20 (de70378).
 
 ## Board snapshot
+- 2026-08-30 15:02 — done: T-0001..T-0005, T-0007 (6/9). doing: T-0006
+  (opus-1). todo: T-0008 (answered — PM ran make-dmg + hdiutil verify VALID
+  on host; worker fixes https head URL, drops dylibbundler dep), T-0009 (QA,
+  eligible now, opus-2). Merges: T-0007 = HEAD~2 on mac-port.
 - 2026-08-30 14:56 — done: T-0001..T-0005 (T-0004 bundle script verified on
   host: 108 MB relocatable `Remote Viewer.app`, 0 external links, codesign
   OK). T-0007 reworked once (cmd→Meta must be darwin-only; add, don't
