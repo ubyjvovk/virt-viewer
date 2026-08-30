@@ -360,3 +360,44 @@ and is unaffected by the host hotkey bindings.
 > For more on the Send key menu and how its accelerators are handled on
 > quartz, see `virt_viewer_window_send_keys()` in `src/virt-viewer-window.c`
 > and the bottom-left header bar "Send key" button.
+
+## Known issues
+
+Found by the QA pass on the packaged `Remote Viewer.app` (macOS 26.4, Apple
+silicon, `build-aux/macos/make-bundle.sh` output; full evidence and repro
+commands in `build/qa/T-0009-report.txt`). Nothing below is fixed yet.
+
+* **The app aborts as soon as it has to draw a themed icon.** GTK asserts in
+  `ensure_surface_for_gicon()` when an icon fails to load, so the failure is
+  fatal rather than cosmetic: entering an address in the connect dialog and
+  pressing *Connect* kills the process instead of showing the connection
+  error (`SIGABRT`, reproduced 3/3). Two bundle defects combine to cause it:
+  * `Contents/Resources/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache` and
+    `Contents/Resources/lib/gtk-3.0/3.0.0/immodules.cache` list their modules
+    with paths relative to the cache file (`loaders/libpixbufloader_svg.so`).
+    gdk-pixbuf and GTK resolve those against the process' working directory,
+    not against the cache, so no module is ever loaded. `GDK_PIXBUF_MODULEDIR`
+    does not help — it only influences cache generation.
+  * `libpixbufloader_svg.so` carries the rpath
+    `@executable_path/../Resources/lib/` twice, and dyld rejects the load with
+    `duplicate LC_RPATH`. It is the only bundled module affected.
+
+  Both have to be corrected together; with an absolute-path loader cache and
+  the duplicate rpath removed, the same connect attempt reaches the intended
+  "Unable to connect to the graphic server" dialog.
+* **⌘Q does not quit the application.** *Quit Remote Viewer* and *Quit and
+  Close All Windows* are present in the application menu but permanently
+  disabled, so neither the shortcut nor the menu item terminates the process.
+  Closing the window and pressing Escape do not end it either; the app has to
+  be killed.
+* **No native input method.** `im-quartz.so` cannot be loaded (same cache
+  problem as above), so dead keys and IME input fall back to the GTK default.
+* **Homebrew paths leak into `immodules.cache`.** Its entries still reference
+  `/opt/homebrew/Cellar/gtk+3/<version>/share/locale`, which does not exist on
+  a machine that only has the bundle.
+* **The main viewer window is not visually native.** It keeps the GTK
+  client-side header bar with its own minimise/maximise/close buttons instead
+  of macOS traffic lights. Cosmetic only.
+* **GTK window contents are invisible to the accessibility API.** Only the
+  title bar buttons appear in the AX tree, so VoiceOver and AX-driven
+  automation cannot reach the dialogs.
