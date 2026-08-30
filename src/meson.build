@@ -36,6 +36,9 @@ util_deps = [
   glib_dep, gmodule_dep, gtk_dep,
 ]
 
+if host_machine.system() == 'darwin'
+  util_deps += dependency('appleframeworks', modules: ['CoreFoundation'])
+endif
 
 util_lib = static_library(
   'virt-viewer-util',
