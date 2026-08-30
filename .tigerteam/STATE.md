@@ -64,6 +64,18 @@ platform-guarded so Linux/Windows are untouched.
   the note-file route.
 - 2026-08-30 — T-0002 accepted 14:20 (de70378).
 
+- 2026-08-30 15:18 — T-0004's bundle is relocatable-but-broken: relative
+  entries in loaders.cache/immodules.cache are NOT resolved against the cache
+  file (dlopen uses cwd) → no IM module, likely no pixbuf loaders; GUI launch
+  survives (0 crash reports) but icons/IM are missing. opus-1 is fixing it
+  inside T-0006 (make-bundle.sh in scope): absolute caches written by the
+  launcher, duplicate LC_RPATH removal. Its `install_name_tool` rewrites
+  after signing cause the user-visible "quit unexpectedly" popups
+  (SIGKILL Code Signature Invalid on dlopen). **T-0006 accept criteria (PM):**
+  every bundled Mach-O re-signed after the last rewrite; GUI launch of the
+  bundle for 10 s adds 0 files to ~/Library/Logs/DiagnosticReports; no
+  dlopen warnings in stderr; `--version` still fine.
+
 ## Board snapshot
 - 2026-08-30 15:05 — done 7/9 (T-0008 formula+DMG accepted). doing: T-0006
   (opus-1, 8 min). todo: T-0009 (QA) — eligible but the supervisor does not
