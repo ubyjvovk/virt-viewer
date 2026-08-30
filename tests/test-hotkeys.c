@@ -101,6 +101,10 @@ test_hotkeys_bad(void)
             G_LOG_LEVEL_WARNING,
             "Unknown hotkey name unknown_command"
         },{
+            "secure-attention=value",
+            G_LOG_LEVEL_WARNING,
+            "Invalid hotkey 'value' for 'secure-attention'"
+        },{
             "secure-attention=sup3r+alt+r",
             G_LOG_LEVEL_WARNING,
             "Invalid hotkey 'sup3r+alt+r' for 'secure-attention'"

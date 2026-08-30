@@ -429,6 +429,7 @@ ctrl_key_to_gtk_key(const gchar *key)
         { "leftshift", "<Shift>" },
         { "left-shift", "<Shift>" },
 
+#ifdef __APPLE__
         { "cmd", "<Meta>" },
         { "rcmd", "<Meta>" },
         { "rightcmd", "<Meta>" },
@@ -436,6 +437,15 @@ ctrl_key_to_gtk_key(const gchar *key)
         { "lcmd", "<Meta>" },
         { "leftcmd", "<Meta>" },
         { "left-cmd", "<Meta>" },
+#endif
+
+        { "cmd", "<Ctrl>" },
+        { "rcmd", "<Ctrl>" },
+        { "rightcmd", "<Ctrl>" },
+        { "right-cmd", "<Ctrl>" },
+        { "lcmd", "<Ctrl>" },
+        { "leftcmd", "<Ctrl>" },
+        { "left-cmd", "<Ctrl>" },
 
         { "meta", "<Meta>" },
         { "rmeta", "<Meta>" },

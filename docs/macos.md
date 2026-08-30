@@ -185,17 +185,15 @@ upstream Ctrl+Alt combinations and are therefore awkward on a Mac keyboard:
 | secure-attention | `ctrl+alt+del` | (via menu, below) |
 
 `--hotkeys` accepts case-insensitive modifier tokens `shift`, `ctrl`, `alt`,
-`cmd` and `meta`. On macOS, both `cmd` and `meta` select the **Command** key,
-while **Option** is selected with `alt`. For example:
+`cmd` and `meta`. On macOS only, both `cmd` and `meta` select the **Command**
+key, while **Option** is selected with `alt`. On other platforms, `cmd`
+retains its legacy meaning as an alias for `ctrl`. For example:
 
 ```sh
 remote-viewer --hotkeys=release-cursor=cmd+alt+r
 ```
 
-binds ⌃⌥R (spelt `cmd+alt+r`) as the release-cursor hotkey. Because it is a
-modifier-only indicator like the default, the release-cursor sequence is not a
-single non-modifier-and-modifier combo, so it is applied via the display
-grab.
+binds ⌘⌥R (spelt `cmd+alt+r`) as the release-cursor hotkey.
 
 ### Sending Ctrl+Alt+Del
 
