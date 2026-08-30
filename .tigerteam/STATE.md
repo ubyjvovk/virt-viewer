@@ -30,6 +30,13 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 — CI via GitHub Actions `macos-latest` (upstream GitLab has no
   mac runners); workflow lives in `.github/workflows/`.
 
+- 2026-08-30 — worker.sb: added `file-read-metadata` on `$HOME/b` (ROOT's
+  ancestor). Without it git in a Seatbelt worker fails with `Invalid path
+  '/Users/d/b'` — upstream skill profile assumes the repo sits directly under
+  $HOME. Killed grok/ds attempts (no penalty) so they relaunch under the fix.
+- 2026-08-30 — arm64 hosts skip the stack-protector probe (aarch64 guard);
+  ticket criteria must not require it in the meson log.
+
 ## Board snapshot
 - 2026-08-30 14:05 — board created; T-0001..T-0009 in todo/; Seatbelt build+test verified green; fleet released (`tigerteam up` was already running), events --wait armed.
 
