@@ -36,3 +36,8 @@ Bug reports / support questions should be submitted to
 Code contributions should be submitted as merge requests to
 
   https://gitlab.com/virt-viewer/virt-viewer/-/merge_requests
+
+## macOS
+
+For native macOS prerequisites, build and test instructions, and current
+feature availability, see [Building on macOS](docs/macos.md).
