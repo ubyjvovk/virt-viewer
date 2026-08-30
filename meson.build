@@ -276,7 +276,7 @@ cc_flags += [
 
 # on aarch64 error: -fstack-protector not supported for this target
 if host_machine.cpu_family() != 'aarch64'
-  if host_machine.system() in [ 'linux', 'freebsd', 'windows' ]
+  if host_machine.system() in [ 'linux', 'freebsd', 'windows', 'darwin' ]
     # we prefer -fstack-protector-strong but fallback to -fstack-protector-all
     fstack_cflags = cc.first_supported_argument([
       '-fstack-protector-strong',
