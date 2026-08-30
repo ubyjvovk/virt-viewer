@@ -31,11 +31,9 @@ platform-guarded so Linux/Windows are untouched.
   mac runners); workflow lives in `.github/workflows/`.
 
 ## Board snapshot
-- 2026-08-30 — board created; tickets T-0001..T-0009 drafted.
+- 2026-08-30 14:05 — board created; T-0001..T-0009 in todo/; Seatbelt build+test verified green; fleet released (`tigerteam up` was already running), events --wait armed.
 
 ## Next actions
-- Smoke one ticket (`tigerteam worker run ds --once`), then `tigerteam up`,
-  arm `tigerteam events --wait`.
 - Review landings oldest-first; after T-0002 + T-0005 land, promote QA T-0009.
 
 ## How to resume
