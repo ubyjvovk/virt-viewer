@@ -447,6 +447,19 @@ if vte_dep.found()
   conf_data.set('HAVE_VTE', '1')
 endif
 
+# gtk-mac-integration only exists on macOS; everywhere else the feature is
+# simply never looked up, so a stray -Dmacos_integration=enabled cannot break
+# a Linux or Windows build.
+if host_machine.system() == 'darwin'
+  gtk_mac_integration_dep = dependency('gtk-mac-integration-gtk3',
+                                       required: get_option('macos_integration'))
+else
+  gtk_mac_integration_dep = dependency('', required: false)
+endif
+if gtk_mac_integration_dep.found()
+  conf_data.set('HAVE_GTK_MAC_INTEGRATION', '1')
+endif
+
 bash_completion_dep = dependency('bash-completion', version: '>=' + bash_completion_version, required: get_option('bash_completion'))
 
 if bash_completion_dep.found()

@@ -84,6 +84,12 @@ if govirt_dep.found()
   ]
 endif
 
+if gtk_mac_integration_dep.found()
+  common_sources += [
+    'virt-viewer-macos.c',
+  ]
+endif
+
 common_deps = [
   libm_dep,
   libxml_dep,
@@ -92,6 +98,7 @@ common_deps = [
   spice_glib_dep, spice_gtk_dep, spice_protocol_dep,
   govirt_dep, rest_dep,
   vte_dep,
+  gtk_mac_integration_dep,
 ]
 
 

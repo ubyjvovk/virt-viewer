@@ -43,6 +43,9 @@
 #include "virt-viewer-util.h"
 #include "virt-viewer-timed-revealer.h"
 #include "virt-viewer-display-vte.h"
+#ifdef HAVE_GTK_MAC_INTEGRATION
+#include "virt-viewer-macos.h"
+#endif
 
 #include "remote-viewer-iso-list-dialog.h"
 
@@ -96,6 +99,11 @@ struct _VirtViewerWindow {
     gchar *subtitle;
     gboolean initial_zoom_set;
     VirtViewerKeyMapping *keyMappings;
+#ifdef HAVE_GTK_MAC_INTEGRATION
+    /* Stable "Send key" submenu model of the macOS menu bar: its contents are
+     * swapped out whenever the key combo menu is rebuilt. */
+    GMenu *macos_send_key_menu;
+#endif
 };
 
 G_DEFINE_TYPE(VirtViewerWindow, virt_viewer_window, G_TYPE_OBJECT)
@@ -169,6 +177,10 @@ virt_viewer_window_dispose (GObject *object)
 
     g_debug("Disposing window %p\n", object);
 
+#ifdef HAVE_GTK_MAC_INTEGRATION
+    g_clear_object(&self->macos_send_key_menu);
+#endif
+
     if (self->window) {
         gtk_widget_destroy(self->window);
         self->window = NULL;
@@ -214,6 +226,13 @@ rebuild_combo_menu(GObject    *gobject G_GNUC_UNUSED,
     gtk_menu_button_set_menu_model(
         GTK_MENU_BUTTON(button),
         G_MENU_MODEL(menu));
+
+#ifdef HAVE_GTK_MAC_INTEGRATION
+    if (self->macos_send_key_menu != NULL) {
+        g_menu_remove_all(self->macos_send_key_menu);
+        g_menu_append_section(self->macos_send_key_menu, NULL, G_MENU_MODEL(menu));
+    }
+#endif
 }
 
 static void
@@ -518,6 +537,46 @@ static GActionEntry actions[] = {
       .activate = virt_viewer_window_action_secure_attention },
 };
 
+#ifdef HAVE_GTK_MAC_INTEGRATION
+/*
+ * There is no in-window GtkMenuBar to hand over on macOS: the menus live in
+ * the header bar / toolbar as GtkMenuButton popovers backed by GMenu models.
+ * So build an off-screen GtkMenuBar over those very same models — it is never
+ * packed into the window, it exists purely for gtk-mac-integration to mirror
+ * into the Cocoa menu bar, and it tracks the models live (the Machine menu is
+ * rewritten as displays come and go).
+ */
+static void
+virt_viewer_window_setup_macos_menubar(VirtViewerWindow *self,
+                                       GtkBuilder *menuBuilder)
+{
+    GMenu *bar = g_menu_new();
+    GtkWidget *menubar;
+    GApplication *app;
+
+    self->macos_send_key_menu = g_menu_new();
+
+    g_menu_append_submenu(bar, _("Machine"),
+                          G_MENU_MODEL(gtk_builder_get_object(menuBuilder, "machine-menu")));
+    g_menu_append_submenu(bar, _("Send key"),
+                          G_MENU_MODEL(self->macos_send_key_menu));
+    g_menu_append_submenu(bar, _("More actions"),
+                          G_MENU_MODEL(gtk_builder_get_object(menuBuilder, "action-menu")));
+
+    menubar = gtk_menu_bar_new_from_model(G_MENU_MODEL(bar));
+    g_object_unref(bar);
+
+    /* The bar has no parent, so it cannot inherit the action groups from the
+     * window the way the header bar popovers do. */
+    gtk_widget_insert_action_group(menubar, "win", G_ACTION_GROUP(self->window));
+    app = g_application_get_default();
+    if (app != NULL)
+        gtk_widget_insert_action_group(menubar, "app", G_ACTION_GROUP(app));
+
+    virt_viewer_macos_window_set_menubar(self, menubar);
+}
+#endif
+
 static void
 virt_viewer_window_init (VirtViewerWindow *self)
 {
@@ -576,6 +635,10 @@ virt_viewer_window_init (VirtViewerWindow *self)
     gtk_menu_button_set_menu_model(
         GTK_MENU_BUTTON(menu),
         G_MENU_MODEL(gtk_builder_get_object(menuBuilder, "machine-menu")));
+
+#ifdef HAVE_GTK_MAC_INTEGRATION
+    virt_viewer_window_setup_macos_menubar(self, menuBuilder);
+#endif
 
     virt_viewer_window_update_title(self);
     gtk_window_set_resizable(GTK_WINDOW(self->window), TRUE);
