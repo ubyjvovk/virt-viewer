@@ -4,7 +4,7 @@
 #   bash build-aux/macos/make-dmg.sh [app-bundle] [output-dmg]
 #
 # The defaults are build/Remote Viewer.app and
-# build/RemoteViewer-<bundle-version>.dmg. The script can be run from any
+# build/virt-viewer-<bundle-version>-macos.dmg. The script can be run from any
 # working directory.
 set -euo pipefail
 
@@ -32,7 +32,7 @@ done
 VERSION="$(plutil -extract CFBundleShortVersionString raw -o - \
     "$APP_DIR/Contents/Info.plist")"
 [ -n "$VERSION" ] || die "could not read the bundle version from $APP_DIR"
-OUT_DMG="$(abspath "${2:-build/RemoteViewer-${VERSION}.dmg}")"
+OUT_DMG="$(abspath "${2:-build/virt-viewer-${VERSION}-macos.dmg}")"
 mkdir -p "$(dirname "$OUT_DMG")"
 
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/virt-viewer-dmg.XXXXXX")"

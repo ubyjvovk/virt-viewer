@@ -215,7 +215,7 @@ bash build-aux/macos/make-dmg.sh
 ```
 
 By default the input is `build/Remote Viewer.app` and the output is
-`build/RemoteViewer-<version>.dmg`, where `<version>` comes from the bundle's
+`build/virt-viewer-<version>-macos.dmg`, where `<version>` comes from the bundle's
 `Info.plist`. The disk image contains the application and an `Applications`
 symlink for drag-and-drop installation. To use other paths, pass the app bundle
 and output DMG as the first and second arguments:

@@ -75,6 +75,11 @@ platform-guarded so Linux/Windows are untouched.
   every bundled Mach-O re-signed after the last rewrite; GUI launch of the
   bundle for 10 s adds 0 files to ~/Library/Logs/DiagnosticReports; no
   dlopen warnings in stderr; `--version` still fine.
+- 2026-08-30 16:35 — Naming (user decision): the bundle stays "Remote
+  Viewer.app" (matches upstream's .desktop Name= and the Windows shortcut;
+  remote-viewer is the URI/.vv app); the DMG is renamed to
+  `virt-viewer-<version>-macos.dmg` after the project, like the MSI. PM made
+  this 3-line edit directly (hdiutil is unusable in sandboxed lanes).
 
 ## Board snapshot
 - 2026-08-30 16:20 — **BOARD DRAINED: 10/10 accepted** (T-0001..T-0010).
