@@ -1,14 +1,13 @@
 class VirtViewer < Formula
   desc "Graphical console client for virtual machines"
   homepage "https://virt-manager.org/"
-  head "git@github.com:ubyjvovk/virt-viewer.git", branch: "mac-port"
+  head "https://github.com/ubyjvovk/virt-viewer.git", branch: "mac-port"
   license "GPL-2.0-or-later"
 
   depends_on "meson" => :build
   depends_on "ninja" => :build
   depends_on "pkgconf" => :build
   depends_on "adwaita-icon-theme"
-  depends_on "dylibbundler"
   depends_on "gettext"
   depends_on "gtk+3"
   depends_on "gtk-mac-integration"
