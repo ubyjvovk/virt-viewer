@@ -60,6 +60,8 @@ test_hotkeys_good(void)
         "toggle-fullscreen=shift+f11",
         "release-cursor=shift+f12,secure-attention=ctrl+shift+b",
         "zoom-in=shift+f2,zoom-out=shift+f3,zoom-reset=shift+f4",
+        "release-cursor=cmd+alt+r",
+        "release-cursor=meta+q",
         // Setting the smartcard hotkeys causes
         // gtk_application_get_accels_for_action() in
         // virt_viewer_update_smartcard_accels() to call
@@ -99,9 +101,9 @@ test_hotkeys_bad(void)
             G_LOG_LEVEL_WARNING,
             "Unknown hotkey name unknown_command"
         },{
-            "secure-attention=value",
+            "secure-attention=sup3r+alt+r",
             G_LOG_LEVEL_WARNING,
-            "Invalid hotkey 'value' for 'secure-attention'"
+            "Invalid hotkey 'sup3r+alt+r' for 'secure-attention'"
         },
     };
 

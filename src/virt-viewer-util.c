@@ -404,7 +404,7 @@ ctrl_key_to_gtk_key(const gchar *key)
         const char *ctrl;
         const char *gtk;
     } keys[] = {
-        /* FIXME: right alt, right ctrl, right shift, cmds */
+        /* FIXME: right alt, right ctrl, right shift */
         { "alt", "<Alt>" },
         { "ralt", "<Alt>" },
         { "rightalt", "<Alt>" },
@@ -429,13 +429,21 @@ ctrl_key_to_gtk_key(const gchar *key)
         { "leftshift", "<Shift>" },
         { "left-shift", "<Shift>" },
 
-        { "cmd", "<Ctrl>" },
-        { "rcmd", "<Ctrl>" },
-        { "rightcmd", "<Ctrl>" },
-        { "right-cmd", "<Ctrl>" },
-        { "lcmd", "<Ctrl>" },
-        { "leftcmd", "<Ctrl>" },
-        { "left-cmd", "<Ctrl>" },
+        { "cmd", "<Meta>" },
+        { "rcmd", "<Meta>" },
+        { "rightcmd", "<Meta>" },
+        { "right-cmd", "<Meta>" },
+        { "lcmd", "<Meta>" },
+        { "leftcmd", "<Meta>" },
+        { "left-cmd", "<Meta>" },
+
+        { "meta", "<Meta>" },
+        { "rmeta", "<Meta>" },
+        { "rightmeta", "<Meta>" },
+        { "right-meta", "<Meta>" },
+        { "lmeta", "<Meta>" },
+        { "leftmeta", "<Meta>" },
+        { "left-meta", "<Meta>" },
 
         { "win", "<Super>" },
         { "rwin", "<Super>" },
