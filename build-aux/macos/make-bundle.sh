@@ -46,7 +46,7 @@ SHARE_DIR="$RES_DIR/share"
 
 # ---------------------------------------------------------------- preflight --
 
-for tool in meson python3 dylibbundler otool codesign iconutil sips plutil \
+for tool in meson python3 dylibbundler otool install_name_tool codesign iconutil sips plutil \
             glib-compile-schemas gdk-pixbuf-query-loaders; do
     command -v "$tool" >/dev/null 2>&1 || die "required tool not on PATH: $tool"
 done
@@ -133,9 +133,9 @@ if copy_modules "$BREW_PREFIX/lib/$GTK_SUB/immodules" "$LIB_DIR/$GTK_SUB/immodul
     have_immodules=1
 fi
 
-# The module caches must be generated *before* dylibbundler rewrites the .so
-# files: the query tools dlopen() each module, which only works while the
-# modules still point at the Homebrew libraries.
+# The module caches must be generated from the Homebrew originals, before
+# dylibbundler rewrites the copied .so files: the query tools dlopen() each
+# module, which only works while its original rpaths are still valid.
 #
 # Both caches are written with module paths relative to the cache file itself.
 # gdk-pixbuf (gdk_pixbuf_io_init) and GTK resolve a relative entry against the
@@ -158,16 +158,18 @@ PY
 
 if [ "$have_pixbuf_loaders" = 1 ]; then
     msg "Generating loaders.cache with bundle-relative module paths"
-    gdk-pixbuf-query-loaders "$LIB_DIR/$PIXBUF_SUB/loaders/"*.so > "$STAGE/loaders.cache"
-    relativize_cache "$STAGE/loaders.cache" "$LIB_DIR/$PIXBUF_SUB/" \
+    gdk-pixbuf-query-loaders "$BREW_PREFIX/lib/$PIXBUF_SUB/loaders/"*.so \
+        > "$STAGE/loaders.cache"
+    relativize_cache "$STAGE/loaders.cache" "$BREW_PREFIX/lib/$PIXBUF_SUB/" \
         "$LIB_DIR/$PIXBUF_SUB/loaders.cache"
 fi
 
 if [ "$have_immodules" = 1 ]; then
     if command -v gtk-query-immodules-3.0 >/dev/null 2>&1; then
         msg "Generating immodules.cache with bundle-relative module paths"
-        gtk-query-immodules-3.0 "$LIB_DIR/$GTK_SUB/immodules/"*.so > "$STAGE/immodules.cache"
-        relativize_cache "$STAGE/immodules.cache" "$LIB_DIR/$GTK_SUB/" \
+        gtk-query-immodules-3.0 "$BREW_PREFIX/lib/$GTK_SUB/immodules/"*.so \
+            > "$STAGE/immodules.cache"
+        relativize_cache "$STAGE/immodules.cache" "$BREW_PREFIX/lib/$GTK_SUB/" \
             "$LIB_DIR/$GTK_SUB/immodules.cache"
     else
         warn "gtk-query-immodules-3.0 not on PATH — no immodules.cache generated"
@@ -176,7 +178,9 @@ fi
 
 msg "Bundling the dependencies of the copied modules"
 module_targets=()
+module_files=()
 while IFS= read -r module; do
+    module_files+=("$module")
     module_targets+=(-x "$module")
 done < <(cd "$APP_DIR" && find Contents/Resources/lib -type f -name '*.so')
 if [ "${#module_targets[@]}" -gt 0 ]; then
@@ -190,6 +194,16 @@ if [ "${#module_targets[@]}" -gt 0 ]; then
             -s "$BREW_PREFIX/lib"
     )
 fi
+
+# Some Homebrew .so modules are Mach-O dylibs with an absolute LC_ID_DYLIB
+# (notably librsvg's pixbuf loader). dylibbundler fixes dependencies of -x
+# targets but leaves their own install IDs unchanged, so normalize those IDs.
+for module in "${module_files[@]}"; do
+    module_id="$(otool -D "$APP_DIR/$module" 2>/dev/null | sed -n '2p')"
+    if [ -n "$module_id" ]; then
+        install_name_tool -id "@loader_path/$(basename "$module")" "$APP_DIR/$module"
+    fi
+done
 
 msg "Checking that nothing links outside the bundle"
 external="$(find "$APP_DIR" \
@@ -212,7 +226,7 @@ done
 
 msg "Copying GSettings schemas"
 mkdir -p "$SHARE_DIR/glib-2.0/schemas"
-cp -R "$BREW_PREFIX/share/glib-2.0/schemas/." "$SHARE_DIR/glib-2.0/schemas/"
+cp -RL "$BREW_PREFIX/share/glib-2.0/schemas/." "$SHARE_DIR/glib-2.0/schemas/"
 if [ -d "$STAGED/share/glib-2.0/schemas" ]; then
     cp -R "$STAGED/share/glib-2.0/schemas/." "$SHARE_DIR/glib-2.0/schemas/"
 fi
@@ -226,11 +240,11 @@ adwaita_dst="$SHARE_DIR/icons/Adwaita"
 if [ -d "$adwaita_src" ]; then
     mkdir -p "$adwaita_dst"
     if [ -f "$adwaita_src/index.theme" ]; then
-        cp "$adwaita_src/index.theme" "$adwaita_dst/"
+        cp -L "$adwaita_src/index.theme" "$adwaita_dst/"
     fi
     for size in 16x16 22x22 24x24 32x32 48x48 scalable symbolic; do
         if [ -d "$adwaita_src/$size" ]; then
-            cp -R "$adwaita_src/$size" "$adwaita_dst/$size"
+            cp -RL "$adwaita_src/$size" "$adwaita_dst/$size"
         fi
     done
 else
@@ -241,7 +255,7 @@ fi
 if [ ! -f "$SHARE_DIR/icons/hicolor/index.theme" ] && \
    [ -f "$BREW_PREFIX/share/icons/hicolor/index.theme" ]; then
     mkdir -p "$SHARE_DIR/icons/hicolor"
-    cp "$BREW_PREFIX/share/icons/hicolor/index.theme" "$SHARE_DIR/icons/hicolor/"
+    cp -L "$BREW_PREFIX/share/icons/hicolor/index.theme" "$SHARE_DIR/icons/hicolor/"
 fi
 
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
@@ -253,7 +267,7 @@ fi
 msg "Copying the shared MIME database"
 if [ -d "$BREW_PREFIX/share/mime" ]; then
     mkdir -p "$SHARE_DIR/mime"
-    cp -R "$BREW_PREFIX/share/mime/." "$SHARE_DIR/mime/"
+    cp -RL "$BREW_PREFIX/share/mime/." "$SHARE_DIR/mime/"
     # Put virt-viewer's own .vv definition back on top of the freedesktop one.
     if [ -d "$STAGED/share/mime/packages" ]; then
         cp -R "$STAGED/share/mime/packages/." "$SHARE_DIR/mime/packages/"

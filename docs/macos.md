@@ -103,7 +103,8 @@ Remote Viewer.app/Contents/
   shared MIME database (rebuilt with `update-mime-database` so virt-viewer's
   own `.vv` type is registered), and the Adwaita icon theme. Only the
   `16x16 22x22 24x24 32x32 48x48 scalable symbolic` subtrees of Adwaita are
-  taken, which is what keeps the bundle small.
+  taken, which is what keeps the bundle small. Homebrew resource symlinks are
+  dereferenced while copying, so the result does not depend on Cellar paths.
 * **The icon** is built with `sips` + `iconutil` from `icons/*/virt-viewer.png`.
   The tree only ships up to 256×256, so the 64, 128, 512 and 1024 px iconset
   members are derived from the 256 px master.
@@ -123,7 +124,7 @@ Remote Viewer.app/Contents/
 
 ### Why there is a launcher script
 
-`CFBundleExecutable` is `remote-viewer-launcher`, a four-line shell script that
+`CFBundleExecutable` is `remote-viewer-launcher`, a small shell script that
 `exec`s the real `remote-viewer` next to it. It exists for exactly two
 environment variables:
 
