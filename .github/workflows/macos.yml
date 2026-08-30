@@ -1,0 +1,40 @@
+name: macOS
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Homebrew dependencies
+        run: >
+          brew install meson ninja pkgconf gtk+3 gtk-vnc spice-gtk
+          spice-protocol libvirt libvirt-glib vte3 libxml2 gettext
+          adwaita-icon-theme gtk-mac-integration dylibbundler
+
+      - name: Build and test
+        run: bash build-aux/macos/check.sh
+
+      - name: Upload meson logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meson-logs
+          path: build/meson-logs/
+
+      - name: Upload app bundle
+        if: hashFiles('build/*.app/Contents/Info.plist') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-bundle
+          path: build/*.app
