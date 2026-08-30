@@ -541,10 +541,16 @@ static GActionEntry actions[] = {
 /*
  * There is no in-window GtkMenuBar to hand over on macOS: the menus live in
  * the header bar / toolbar as GtkMenuButton popovers backed by GMenu models.
- * So build an off-screen GtkMenuBar over those very same models — it is never
- * packed into the window, it exists purely for gtk-mac-integration to mirror
- * into the Cocoa menu bar, and it tracks the models live (the Machine menu is
- * rewritten as displays come and go).
+ * So build a GtkMenuBar over those very same models — it tracks the models
+ * live (the Machine menu is rewritten as displays come and go) and exists
+ * purely for gtk-mac-integration to mirror into the Cocoa menu bar.
+ *
+ * It is packed into the window's overlay but kept permanently hidden, so it
+ * is never drawn: gtk-mac-integration resolves gtk_widget_get_toplevel() on
+ * the bar to install the menu accelerators on the window, which needs a real
+ * GtkWindow ancestor. Being inside the window also lets the bar inherit the
+ * "win"/"app" action groups from the GtkApplicationWindow, exactly like the
+ * header bar popovers do.
  */
 static void
 virt_viewer_window_setup_macos_menubar(VirtViewerWindow *self,
@@ -552,7 +558,7 @@ virt_viewer_window_setup_macos_menubar(VirtViewerWindow *self,
 {
     GMenu *bar = g_menu_new();
     GtkWidget *menubar;
-    GApplication *app;
+    GtkWidget *overlay;
 
     self->macos_send_key_menu = g_menu_new();
 
@@ -566,12 +572,8 @@ virt_viewer_window_setup_macos_menubar(VirtViewerWindow *self,
     menubar = gtk_menu_bar_new_from_model(G_MENU_MODEL(bar));
     g_object_unref(bar);
 
-    /* The bar has no parent, so it cannot inherit the action groups from the
-     * window the way the header bar popovers do. */
-    gtk_widget_insert_action_group(menubar, "win", G_ACTION_GROUP(self->window));
-    app = g_application_get_default();
-    if (app != NULL)
-        gtk_widget_insert_action_group(menubar, "app", G_ACTION_GROUP(app));
+    overlay = GTK_WIDGET(gtk_builder_get_object(self->builder, "viewer-overlay"));
+    gtk_overlay_add_overlay(GTK_OVERLAY(overlay), menubar);
 
     virt_viewer_macos_window_set_menubar(self, menubar);
 }

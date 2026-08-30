@@ -35,6 +35,9 @@
 /* Where each GtkWindow keeps the (never displayed) GtkMenuBar that
  * gtk-mac-integration mirrors into the Cocoa menu bar. */
 #define VIRT_VIEWER_MACOS_MENUBAR_KEY "virt-viewer-macos-menubar"
+/* The menu bar currently mirrored into Cocoa, so a window that regains focus
+ * repeatedly does not reinstall the same one. */
+static GtkWidget *virt_viewer_macos_current_menubar;
 /* Where the VirtViewerApp keeps the app-menu About item alive. */
 #define VIRT_VIEWER_MACOS_ABOUT_KEY "virt-viewer-macos-about-item"
 
@@ -125,34 +128,46 @@ virt_viewer_macos_init(VirtViewerApp *app)
 }
 
 static void
+virt_viewer_macos_install_menubar(GtkWidget *menubar)
+{
+    /* There is one Cocoa menu bar but one GtkMenuBar per window, so the bar
+     * has to follow the focus. Reinstalling the one that is already mirrored
+     * would re-add gtk-mac-integration's accel group to its window. */
+    if (menubar == virt_viewer_macos_current_menubar)
+        return;
+
+    gtkosx_application_set_menu_bar(gtkosx_application_get(),
+                                    GTK_MENU_SHELL(menubar));
+    virt_viewer_macos_current_menubar = menubar;
+}
+
+static void
 virt_viewer_macos_window_notify_is_active(GObject *object,
                                           GParamSpec *pspec G_GNUC_UNUSED,
                                           gpointer opaque G_GNUC_UNUSED)
 {
-    GtkWindow *window = GTK_WINDOW(object);
     GtkWidget *menubar;
 
-    if (!gtk_window_is_active(window))
+    if (!gtk_window_is_active(GTK_WINDOW(object)))
         return;
 
     menubar = g_object_get_data(object, VIRT_VIEWER_MACOS_MENUBAR_KEY);
     if (menubar == NULL)
         return;
 
-    /* There is one Cocoa menu bar but one GtkMenuBar per window, so the bar
-     * has to follow the focus. */
-    gtkosx_application_set_menu_bar(gtkosx_application_get(),
-                                    GTK_MENU_SHELL(menubar));
+    virt_viewer_macos_install_menubar(menubar);
 }
 
 /**
  * virt_viewer_macos_window_set_menubar:
  * @win: the #VirtViewerWindow
- * @menubar: a #GtkMenuBar that is not part of any widget hierarchy
+ * @menubar: a #GtkMenuBar already packed into @win's widget hierarchy
  *
- * Take ownership of @menubar and mirror it into the global macOS menu bar
- * whenever @win is the active window. @menubar is never drawn in the window
- * itself; it exists only as the model gtk-mac-integration reads.
+ * Mirror @menubar into the global macOS menu bar whenever @win is the active
+ * window. @menubar is kept permanently hidden, so it is never drawn inside the
+ * window; it exists only as the model gtk-mac-integration reads. It must
+ * already have @win's #GtkWindow as an ancestor, because gtk-mac-integration
+ * installs the menu accelerators on gtk_widget_get_toplevel(@menubar).
  */
 void
 virt_viewer_macos_window_set_menubar(VirtViewerWindow *win, GtkWidget *menubar)
@@ -163,20 +178,24 @@ virt_viewer_macos_window_set_menubar(VirtViewerWindow *win, GtkWidget *menubar)
     g_return_if_fail(VIRT_VIEWER_IS_WINDOW(win));
     g_return_if_fail(GTK_IS_MENU_BAR(menubar));
 
+    window = virt_viewer_window_get_window(win);
+    g_return_if_fail(gtk_widget_get_toplevel(menubar) == GTK_WIDGET(window));
+
     /* gtk-mac-integration skips menu items that are not visible, so show
-     * everything first and then hide only the bar itself. */
+     * everything first, then hide the bar itself and opt it out of the
+     * window's gtk_widget_show_all() so it stays hidden for good. */
     gtk_widget_show_all(menubar);
     gtk_widget_hide(menubar);
+    gtk_widget_set_no_show_all(menubar, TRUE);
 
-    window = virt_viewer_window_get_window(win);
-    g_object_set_data_full(G_OBJECT(window), VIRT_VIEWER_MACOS_MENUBAR_KEY,
-                           g_object_ref_sink(menubar), g_object_unref);
+    /* The window owns the widget; this is only a lookup handle for the
+     * focus tracking below. */
+    g_object_set_data(G_OBJECT(window), VIRT_VIEWER_MACOS_MENUBAR_KEY, menubar);
 
     g_signal_connect(window, "notify::is-active",
                      G_CALLBACK(virt_viewer_macos_window_notify_is_active), NULL);
 
-    gtkosx_application_set_menu_bar(gtkosx_application_get(),
-                                    GTK_MENU_SHELL(menubar));
+    virt_viewer_macos_install_menubar(menubar);
 
     if (!app_ready) {
         /* Only meaningful once, and only once a menu bar exists. */

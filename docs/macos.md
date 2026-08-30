@@ -45,9 +45,16 @@ wrapped in `#ifdef HAVE_GTK_MAC_INTEGRATION`.
 Unlike a classic GTK application, virt-viewer has no in-window `GtkMenuBar` to
 hand over: its menus are `GtkMenuButton` popovers in the header bar. Each
 `VirtViewerWindow` therefore builds an extra `GtkMenuBar` from the same menu
-models, never packs it into the window, and passes it to
-`virt_viewer_macos_window_set_menubar()`, which hides it and mirrors it into
-the Cocoa menu bar.
+models and passes it to `virt_viewer_macos_window_set_menubar()`, which mirrors
+it into the Cocoa menu bar.
+
+That extra bar *is* packed into the window (as an overlay child of
+`viewer-overlay`), but it is hidden and marked `no-show-all`, so it is never
+drawn. It has to have the `GtkWindow` as an ancestor for two reasons:
+gtk-mac-integration installs the mirrored menu accelerators on
+`gtk_widget_get_toplevel()` of the bar, which must be a real `GtkWindow`; and
+being inside the `GtkApplicationWindow` is what lets the bar's items resolve
+their `win.*` and `app.*` actions, exactly as the header bar popovers do.
 
 Because there is one Cocoa menu bar but one `GtkMenuBar` per window, the menu
 bar is re-pointed at whichever window is active (`notify::is-active`). With
