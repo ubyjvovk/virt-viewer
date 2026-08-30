@@ -77,6 +77,27 @@ platform-guarded so Linux/Windows are untouched.
   dlopen warnings in stderr; `--version` still fine.
 
 ## Board snapshot
+- 2026-08-30 16:20 — **BOARD DRAINED: 10/10 accepted** (T-0001..T-0010).
+  T-0009 QA re-run on the final tree: PASS (native menu bar, native title
+  bars on dialogs, connection-error dialog instead of crash, ⌘Q quits,
+  clean-env launch with zero stderr, 0 crash reports). Remaining known
+  issues are all P3 and documented in docs/macos.md "Known issues".
+  Cost: 148 attempts, 2h37m wall, ~$40.84 engine-reported (codex/grok/ds
+  lanes report no cost). PR shape: 66 commits on mac-port over master,
+  23 product files, +1961/-6 (excluding board/AGENTS/tigerteam.toml).
+
+## PR preparation (next session)
+- Product diff = `git diff master...mac-port -- . ':!.tigerteam' ':!tigerteam.toml' ':!AGENTS.md'`.
+  The board files must NOT go upstream: build a clean PR branch from
+  `master` with the product files only (e.g. `git checkout -b mac-port-pr
+  master && git checkout mac-port -- <product paths>` in a fresh worktree,
+  then a handful of logical commits: build/docs, bundle-relative paths,
+  menu bar + quit, URL/.vv handlers, hotkeys, packaging, CI).
+- Nothing has been pushed. Pushing/opening the PR requires the user's
+  explicit approval (global rule).
+- Optional follow-ups (see 15:58 entry a–e): dialog key-window, ⌘Q during
+  error dialog, po/POTFILES, native chrome, AX tree; plus immodules.cache
+  Homebrew locale paths (T-0009 P3 #1).
 - 2026-08-30 15:58 — done 9 (T-0010 Quit fix accepted after PM host check:
   AX Quit enabled=true, Cocoa quit request exits, 0 crash reports). Only
   T-0009 (QA re-run on current tree, opus) remains. Follow-up candidates from
