@@ -188,22 +188,31 @@ platform-guarded so Linux/Windows are untouched.
   `mac-port`: 353ea74 (T-0001), f9f1243 (T-0003).
 - 2026-08-30 14:05 — board created; T-0001..T-0009 in todo/; Seatbelt build+test verified green; fleet released (`tigerteam up` was already running), events --wait armed.
 
+- 2026-08-31 — **Fix wave done + re-fold done.** T-0015..T-0019 all accepted
+  first-attempt (~11 min wall; opus $1.60, ds/codex unreported). mac-port-pr
+  REBUILT from master with fixes folded into the same 8-commit series (tip
+  c33a0c6); commit messages updated (stack-protector aarch64 no-op wording per
+  codex N3, second-table + man wording in hotkeys commit, weak-pointer +
+  OpenURL forward-compat in module commit, hardening + LSHandlerRank in
+  packaging commit, CI now builds the bundle). Builds+tests green at commits
+  3, 5 and tip (4/4). T-0011 accepted: its merge conflicted on
+  .gitignore/check.sh/docs (expected — sanitized versions); resolved with the
+  PR-side content via git show (no checkout in root), merge f534f3c, tests
+  green. **mac-port and mac-port-pr are now content-identical on all product
+  paths.** Board drained 19/19.
+
 ## Next actions
-- **Fix wave pending user go** (proposed tickets, land on mac-port then PM
-  re-folds into the mac-port-pr series before push):
-  T-0015 (C2) spice_key_to_gdk_key cmd→Meta_L under __APPLE__ + modifier-only
-  test; T-0016 (C2) make-bundle.sh hardening: APP_DIR guard, derive
-  LSMinimumSystemVersion from built minos, refuse (or strip plist decls) when
-  HAVE_GTK_MAC_INTEGRATION absent, empty-glob guard, atomic cache mv, spice
-  LSHandlerRank decision; T-0017 (C2) macos.c robustness: weak menubar
-  pointer, ref_sink-before-handover, precondition order, NULL-GError guard,
-  ifdef/else dead cmd rows, optional NSApplicationOpenURL runtime lookup;
-  T-0018 (C1) docs/man: "never reach the guest" wording, dead symbol ref, CI
-  caveat, formula head → upstream GitLab (+ docs line); T-0019 (C1) CI: add
-  make-bundle.sh step so the upload is reachable.
-- Then rebase-time items with the user (DCO signoff, strip trailers, commit
-  wording), re-verify, and the push/MR approvals as before. Optionally tap/DMG.
-- `mac-port-pr` (ac83b1f) unchanged; NOTHING pushed.
+- Waiting on the user (all local until then; NOTHING pushed):
+  1. Commit-trailer decision: strip Claude-Session and add the user's own
+     Signed-off-by (DCO universal upstream) — one rebase, PM does it on go.
+  2. Approval to create/push a GitLab fork and open the MR against
+     virt-viewer/virt-viewer (MR text should disclose: meta/Super
+     cross-platform behavior + latent win+X fix; GH Actions workflow optional;
+     in-tree formula rationale).
+  3. Optional: personal tap / GitHub release DMG (separate approval).
+- Follow-up candidates (P3, not ticketed): T-0016 reviewer notes (bundle-id
+  drift between plist and launcher cache dir; config.h staleness vs meson
+  introspect), plus the earlier 15:58 list a–e and immodules locale paths.
 
 ## How to resume
 1. Read this file. 2. `tigerteam status`. 3. review/ then blocked/.
