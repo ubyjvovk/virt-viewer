@@ -36,6 +36,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#include <limits.h>
+#endif
+
 #include <libxml/xpath.h>
 #include <libxml/uri.h>
 
@@ -263,6 +269,50 @@ static BOOL is_handle_valid(HANDLE h)
 }
 #endif
 
+/*
+ * virt_viewer_util_get_bundle_resources_dir:
+ *
+ * Returns the path to the "Contents/Resources" directory of the current
+ * macOS application bundle, or NULL when the process is not running from
+ * inside a .app bundle (for instance a plain build or an installed
+ * binary). CFBundleGetMainBundle() returns a bundle for any executable, so
+ * "in a bundle" is decided by the canonical trailing path shape.
+ *
+ * The returned string is newly allocated; free it with g_free().
+ *
+ * Returns: (transfer full): the bundle resources directory, or NULL.
+ */
+gchar *
+virt_viewer_util_get_bundle_resources_dir(void)
+{
+#if defined(__APPLE__)
+    CFBundleRef bundle = CFBundleGetMainBundle();
+    CFURLRef res_url = NULL;
+    gchar *path = NULL;
+
+    if (bundle == NULL)
+        return NULL;
+
+    res_url = CFBundleCopyResourcesDirectoryURL(bundle);
+    if (res_url != NULL) {
+        gchar buf[PATH_MAX];
+
+        if (CFURLGetFileSystemRepresentation(res_url, TRUE,
+                                             (UInt8 *)buf, sizeof(buf))) {
+            if (g_str_has_suffix(buf, ".app/Contents/Resources"))
+                path = g_strdup(buf);
+        }
+        CFRelease(res_url);
+    }
+
+    g_debug("virt_viewer_util_get_bundle_resources_dir: %s",
+            path != NULL ? path : "NULL (not in a bundle)");
+    return path;
+#else
+    return NULL;
+#endif
+}
+
 void virt_viewer_util_init(const char *appname)
 {
 #ifdef G_OS_WIN32
@@ -310,6 +360,30 @@ void virt_viewer_util_init(const char *appname)
     g_free(base_path);
     g_free(utf8_locale_dir);
     g_free(locale_dir);
+#elif defined(__APPLE__)
+    g_autofree gchar *bundle_resources_dir = virt_viewer_util_get_bundle_resources_dir();
+    if (bundle_resources_dir != NULL) {
+        gchar *locale_dir = g_build_filename(bundle_resources_dir, "share", "locale", NULL);
+        bindtextdomain(GETTEXT_PACKAGE, locale_dir);
+        g_free(locale_dir);
+
+        /* Make icon themes and the mime database shipped inside the bundle
+         * discoverable, unless the user has already set these. */
+        if (g_getenv("XDG_DATA_DIRS") == NULL) {
+            gchar *data_dirs = g_build_filename(bundle_resources_dir, "share", NULL);
+            g_setenv("XDG_DATA_DIRS", data_dirs, FALSE);
+            g_free(data_dirs);
+        }
+
+        if (g_getenv("GSETTINGS_SCHEMA_DIR") == NULL) {
+            gchar *schema_dir = g_build_filename(bundle_resources_dir, "share",
+                                                 "glib-2.0", "schemas", NULL);
+            g_setenv("GSETTINGS_SCHEMA_DIR", schema_dir, FALSE);
+            g_free(schema_dir);
+        }
+    } else {
+        bindtextdomain(GETTEXT_PACKAGE, LOCALE_DIR);
+    }
 #else
     bindtextdomain(GETTEXT_PACKAGE, LOCALE_DIR);
 #endif
