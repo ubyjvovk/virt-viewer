@@ -29,8 +29,25 @@ abspath() {
     esac
 }
 
+# Resolve `.`, `..` and symlinks, so that the APP_DIR safety check in the
+# preflight judges the path `rm -rf` would really delete.
+canonicalize() {
+    local path="$1" dir base
+    if [ -d "$path" ]; then
+        (cd -- "$path" && pwd -P)
+        return
+    fi
+    dir="$(dirname -- "$path")"
+    base="$(basename -- "$path")"
+    if [ -d "$dir" ]; then
+        printf '%s/%s\n' "$(cd -- "$dir" && pwd -P)" "$base"
+    else
+        printf '%s\n' "$path"
+    fi
+}
+
 BUILD_DIR="$(abspath "${BUILD_DIR:-build}")"
-APP_DIR="$(abspath "${APP_DIR:-${BUILD_DIR}/Remote Viewer.app}")"
+APP_DIR="$(canonicalize "$(abspath "${APP_DIR:-${BUILD_DIR}/Remote Viewer.app}")")"
 BREW_PREFIX="${BREW_PREFIX:-$(brew --prefix 2>/dev/null || echo /opt/homebrew)}"
 export PKG_CONFIG_PATH="${BREW_PREFIX}/opt/libxml2/lib/pkgconfig:${BREW_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
@@ -49,6 +66,19 @@ SHARE_DIR="$RES_DIR/share"
 
 # ---------------------------------------------------------------- preflight --
 
+# $APP_DIR is wiped with `rm -rf` below and comes from the environment, so it
+# is checked before anything else runs: it must name a *.app that either does
+# not exist yet or is an existing bundle we are replacing. Without this,
+# APP_DIR=. deletes the source tree.
+case "$(basename -- "$APP_DIR")" in
+    *.app) ;;
+    *) die "refusing APP_DIR=$APP_DIR: it must name a *.app directory that is either absent or an existing bundle" ;;
+esac
+if [ -e "$APP_DIR" ] || [ -L "$APP_DIR" ]; then
+    [ -d "$APP_DIR" ] && [ -f "$APP_DIR/Contents/Info.plist" ] || \
+        die "refusing APP_DIR=$APP_DIR: it exists but is not a bundle (no Contents/Info.plist)"
+fi
+
 for tool in meson python3 dylibbundler otool install_name_tool codesign iconutil sips plutil \
             glib-compile-schemas gdk-pixbuf-query-loaders; do
     command -v "$tool" >/dev/null 2>&1 || die "required tool not on PATH: $tool"
@@ -56,6 +86,13 @@ done
 [ -f "$BUILD_DIR/build.ninja" ] || \
     die "no configured meson build in $BUILD_DIR — run build-aux/macos/check.sh first"
 [ -d "$BREW_PREFIX" ] || die "Homebrew prefix not found: $BREW_PREFIX"
+
+# Info.plist declares the spice/vnc URL schemes and the .vv document type
+# unconditionally. A build without gtk-mac-integration has no handler for the
+# open events LaunchServices would then deliver, so such a bundle is refused
+# rather than shipped with dead declarations.
+grep -q '#define HAVE_GTK_MAC_INTEGRATION 1' "$BUILD_DIR/config.h" 2>/dev/null || \
+    die "$BUILD_DIR was configured without the macOS integration — reconfigure with -Dmacos_integration=enabled before bundling"
 
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/virt-viewer-bundle.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
@@ -115,8 +152,18 @@ msg "Bundling shared libraries with dylibbundler"
 # gdk-pixbuf image loaders and GTK input-method modules are dlopen()ed, so they
 # are invisible to dylibbundler's dependency walk and must be copied by hand.
 copy_modules() {
-    local src="$1" dst="$2" what="$3"
-    if [ ! -d "$src" ]; then
+    local src="$1" dst="$2" what="$3" module found=0
+    if [ -d "$src" ]; then
+        # An existing but empty directory must take the same warn-and-skip
+        # path: the unexpanded glob would otherwise fail cp under `set -e`.
+        for module in "$src"/*.so; do
+            if [ -e "$module" ]; then
+                found=1
+                break
+            fi
+        done
+    fi
+    if [ "$found" = 0 ]; then
         warn "no $what found in $src — skipping"
         return 1
     fi
@@ -330,7 +377,19 @@ iconutil -c icns "$iconset" -o "$RES_DIR/remote-viewer.icns"
 # --------------------------------------------------------------- metadata ----
 
 msg "Writing Info.plist and PkgInfo"
-sed -e "s|@VERSION@|$VERSION|g" "$SRC_ROOT/build-aux/macos/Info.plist.in" \
+# LSMinimumSystemVersion has to match what the bundled Mach-Os really need: the
+# Homebrew libraries inherit their builder's deployment target, and a lower
+# value in the plist only buys a silent dyld abort instead of a LaunchServices
+# dialog on an older macOS.
+MINOS="$(otool -l "$MACOS_DIR/remote-viewer" \
+    | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2;exit}')"
+if [ -z "$MINOS" ]; then
+    MINOS="12.0"
+    warn "no LC_BUILD_VERSION minos in the bundled remote-viewer — falling back to LSMinimumSystemVersion $MINOS"
+fi
+msg "LSMinimumSystemVersion: $MINOS"
+sed -e "s|@VERSION@|$VERSION|g" -e "s|@MINOS@|$MINOS|g" \
+    "$SRC_ROOT/build-aux/macos/Info.plist.in" \
     > "$CONTENTS_DIR/Info.plist"
 plutil -lint "$CONTENTS_DIR/Info.plist" >/dev/null || die "generated Info.plist is malformed"
 printf 'APPL????' > "$CONTENTS_DIR/PkgInfo"
@@ -364,10 +423,18 @@ export GTK_IM_MODULE_FILE="$res/lib/gtk-3.0/3.0.0/immodules.cache"
 # is a degraded UI rather than no application.
 cachedir="${XDG_CACHE_HOME:-$HOME/Library/Caches}/org.virt-manager.remote-viewer"
 if mkdir -p "$cachedir" 2>/dev/null; then
+    # Written through a temporary file and mv'd into place: a second copy of
+    # the app can be launched while this one runs (an arriving URI does exactly
+    # that), and it would otherwise dlopen against a half-written cache.
     absolutize() { # <bundled cache> <relative dir the entries start with> <output>
-        local dir
+        local dir tmp
         dir="$(dirname -- "$1")"
-        sed -e "s|\"$2/|\"$dir/$2/|g" -- "$1" > "$3" 2>/dev/null
+        tmp="$3.tmp.$$"
+        if sed -e "s|\"$2/|\"$dir/$2/|g" -- "$1" > "$tmp" 2>/dev/null; then
+            mv -f "$tmp" "$3" 2>/dev/null && return 0
+        fi
+        rm -f "$tmp" 2>/dev/null || true
+        return 1
     }
     if absolutize "$GDK_PIXBUF_MODULE_FILE" loaders "$cachedir/loaders.cache"; then
         export GDK_PIXBUF_MODULE_FILE="$cachedir/loaders.cache"
