@@ -331,7 +331,7 @@ remote_viewer_macos_open_uri(VirtViewerApp *app, const gchar *uri)
      * gets one of its own. */
     if (!virt_viewer_macos_spawn_uri(uri, &error)) {
         virt_viewer_app_simple_message_dialog(app, _("Unable to open %s: %s"),
-                                              uri, error->message);
+                                              uri, error ? error->message : _("Unknown error"));
         g_clear_error(&error);
     }
 }
