@@ -57,6 +57,9 @@
 #ifdef HAVE_SPICE_GTK
 #include "virt-viewer-session-spice.h"
 #endif
+#ifdef HAVE_GTK_MAC_INTEGRATION
+#include "virt-viewer-macos.h"
+#endif
 
 #include "virt-viewer-display-vte.h"
 
@@ -2531,6 +2534,12 @@ virt_viewer_app_on_application_startup(GApplication *app)
 
     priv->verbose = opt_verbose;
     priv->quit_on_disconnect = opt_kiosk ? opt_kiosk_quit : TRUE;
+
+#ifdef HAVE_GTK_MAC_INTEGRATION
+    /* Before the first window: a window installs its menu bar (and marks the
+     * Cocoa application ready) as soon as it is constructed. */
+    virt_viewer_macos_init(self);
+#endif
 
     priv->main_window = virt_viewer_app_window_new(self,
                                                    virt_viewer_app_get_first_monitor(self));
