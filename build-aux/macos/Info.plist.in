@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Info.plist template for "Remote Viewer.app".
+
+  build-aux/macos/make-bundle.sh substitutes @VERSION@ with the meson project
+  version and @MINOS@ with the deployment target of the bundled main
+  executable, and writes the result to Contents/Info.plist.
+
+  CFBundleExecutable is the small shell launcher installed next to the real
+  binary; see the launcher rationale in docs/macos.md.
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>Remote Viewer</string>
+  <key>CFBundleExecutable</key>
+  <string>remote-viewer-launcher</string>
+  <key>CFBundleIconFile</key>
+  <string>remote-viewer.icns</string>
+  <key>CFBundleIdentifier</key>
+  <string>org.virt-manager.remote-viewer</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>Remote Viewer</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@VERSION@</string>
+  <key>CFBundleSignature</key>
+  <string>????</string>
+  <key>CFBundleVersion</key>
+  <string>@VERSION@</string>
+  <!-- Substituted with the `minos` of the bundled main executable: the
+       Homebrew libraries the bundle carries are built against the builder's
+       SDK, so an older macOS that LaunchServices would have allowed to launch
+       only gets a silent dyld abort. -->
+  <key>LSMinimumSystemVersion</key>
+  <string>@MINOS@</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <!-- URL schemes remote-viewer knows how to connect to. LaunchServices hands
+       these to the app as Apple events, which reach the code through
+       gtk-mac-integration's NSApplicationOpenFile signal; see
+       src/virt-viewer-macos.c and docs/macos.md ("URL and file handlers").
+
+       `spice` is claimed with LSHandlerRank Owner — no other macOS
+       application handles spice:// and virt-viewer defines the scheme.
+
+       `vnc` is deliberately declared with role Viewer and no LSHandlerRank:
+       macOS ships Screen Sharing.app as the system handler for vnc:// and it
+       stays the default unless the user picks Remote Viewer explicitly. -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>SPICE connection</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>spice</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>VNC connection</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>vnc</string>
+      </array>
+    </dict>
+  </array>
+  <!-- .vv connection files. The UTI is exported (not imported) because
+       virt-viewer defines the format; it mirrors the freedesktop MIME type in
+       data/virt-viewer-mime.xml.in. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Virt Viewer connection file</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>remote-viewer.icns</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>vv</string>
+      </array>
+      <key>CFBundleTypeMIMETypes</key>
+      <array>
+        <string>application/x-virt-viewer</string>
+      </array>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>org.virt-manager.virt-viewer.vv</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>org.virt-manager.virt-viewer.vv</string>
+      <key>UTTypeDescription</key>
+      <string>Virt Viewer connection file</string>
+      <key>UTTypeIconFile</key>
+      <string>remote-viewer.icns</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.data</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>vv</string>
+        </array>
+        <key>public.mime-type</key>
+        <array>
+          <string>application/x-virt-viewer</string>
+        </array>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
