@@ -1,0 +1,4 @@
+/build/
+# macOS application bundles produced by build-aux/macos/make-bundle.sh
+# (covers custom BUILD_DIR/APP_DIR values outside the build dir above)
+*.app/

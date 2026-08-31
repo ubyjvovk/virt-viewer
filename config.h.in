@@ -44,3 +44,6 @@
 
 /* Have vte? */
 #mesondefine HAVE_VTE
+
+/* Have gtk-mac-integration? (macOS only) */
+#mesondefine HAVE_GTK_MAC_INTEGRATION

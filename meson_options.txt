@@ -5,6 +5,7 @@ option('vnc', type: 'feature', value: 'auto', description: 'VNC support')
 option('spice', type: 'feature', value: 'auto', description: 'SPICE support')
 option('ovirt', type: 'feature', value: 'auto', description: 'oVirt support')
 option('vte', type: 'feature', value: 'auto', description: 'VTE support')
+option('macos_integration', type: 'feature', value: 'auto', description: 'macOS menu bar integration (gtk-mac-integration)')
 
 option('build-id', type: 'string', value: '', description: 'Extra build ID string')
 option('os-id', type: 'string', value: '', description: 'Remote viewer OS-ID string')
