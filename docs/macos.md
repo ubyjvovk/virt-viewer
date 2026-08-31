@@ -186,8 +186,11 @@ by this script.
 
 ### Homebrew formula
 
-`build-aux/macos/virt-viewer.rb` is a head-only Homebrew formula for the
-`mac-port` branch. Install it directly from a checkout with:
+`build-aux/macos/virt-viewer.rb` is a head-only Homebrew formula that
+builds the upstream default branch. It only produces a macOS-capable
+build once this port is merged upstream; until then, install it from a
+fork or tap carrying the port. Install it directly from a checkout
+with:
 
 ```sh
 brew install --HEAD --formula ./build-aux/macos/virt-viewer.rb
@@ -233,7 +236,9 @@ signing notes above still apply to a distributed build.
 GitHub Actions workflow `.github/workflows/macos.yml` builds and tests every
 push and pull request on `macos-latest` (Homebrew dependencies plus
 `bash build-aux/macos/check.sh`). Meson logs are uploaded as artifacts; a
-`.app` bundle is uploaded too when one is present under `build/`.
+`.app` bundle is uploaded too when one is present under `build/`. This
+workflow runs only on GitHub-hosted mirrors and forks of the project;
+upstream's GitLab CI has no macOS runners and does not execute it.
 
 ## Running from a bundle
 
@@ -366,6 +371,10 @@ Sharing.app as the system handler for that scheme and it stays the default.
 Remote Viewer only opens a `vnc://` URL if the user picks it explicitly (Finder
 → Get Info → Open with, or an equivalent LaunchServices change).
 
+`spice` is declared with `LSHandlerRank` `Owner` because virt-viewer defines
+that scheme's UX; `vnc` is deliberately rank-free so that Remote Viewer never
+steals the default from a user's chosen VNC client.
+
 #### How a request reaches the connection code
 
 Cocoa delivers both kinds of request as Apple events, and hands both to the
@@ -471,15 +480,18 @@ binds ⌘⌥R (spelt `cmd+alt+r`) as the release-cursor hotkey.
 
 ### Sending Ctrl+Alt+Del
 
-The guest sees nothing of the host's Command key, and hotkeys containing
-`cmd`/`meta` never reach the guest. To send a key combination (such as
+The guest sees nothing of the host's Command key: the Command key
+itself is consumed by the host when pressed as part of a hotkey; the
+*Send key* menu can still synthesize Command-based combinations in the
+guest. To send a key combination (such as
 Ctrl+Alt+Del for a Windows guest) to the guest, use the **Send key** menu (header bar *Send key* button):
 *Send key* → *Ctrl+Alt+Del*. This goes through the guest channel
 and is unaffected by the host hotkey bindings.
 
 > For more on the Send key menu and how its accelerators are handled on
-> quartz, see `virt_viewer_window_send_keys()` in `src/virt-viewer-window.c`
-> and the bottom-left header bar "Send key" button.
+> quartz, see `virt_viewer_window_action_send_key()` in
+> `src/virt-viewer-window.c` and `virt_viewer_display_send_keys()` in
+> `src/virt-viewer-display.c`.
 
 ## Known issues
 
