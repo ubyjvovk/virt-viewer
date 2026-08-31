@@ -404,7 +404,7 @@ ctrl_key_to_gtk_key(const gchar *key)
         const char *ctrl;
         const char *gtk;
     } keys[] = {
-        /* FIXME: right alt, right ctrl, right shift, cmds */
+        /* FIXME: right alt, right ctrl, right shift */
         { "alt", "<Alt>" },
         { "ralt", "<Alt>" },
         { "rightalt", "<Alt>" },
@@ -429,6 +429,15 @@ ctrl_key_to_gtk_key(const gchar *key)
         { "leftshift", "<Shift>" },
         { "left-shift", "<Shift>" },
 
+#ifdef __APPLE__
+        { "cmd", "<Meta>" },
+        { "rcmd", "<Meta>" },
+        { "rightcmd", "<Meta>" },
+        { "right-cmd", "<Meta>" },
+        { "lcmd", "<Meta>" },
+        { "leftcmd", "<Meta>" },
+        { "left-cmd", "<Meta>" },
+#else
         { "cmd", "<Ctrl>" },
         { "rcmd", "<Ctrl>" },
         { "rightcmd", "<Ctrl>" },
@@ -436,6 +445,15 @@ ctrl_key_to_gtk_key(const gchar *key)
         { "lcmd", "<Ctrl>" },
         { "leftcmd", "<Ctrl>" },
         { "left-cmd", "<Ctrl>" },
+#endif
+
+        { "meta", "<Meta>" },
+        { "rmeta", "<Meta>" },
+        { "rightmeta", "<Meta>" },
+        { "right-meta", "<Meta>" },
+        { "lmeta", "<Meta>" },
+        { "leftmeta", "<Meta>" },
+        { "left-meta", "<Meta>" },
 
         { "win", "<Super>" },
         { "rwin", "<Super>" },
@@ -536,6 +554,16 @@ spice_key_to_gdk_key(const gchar *spice_key)
         { "rctrl", "Control_R" },
         { "rightctrl", "Control_R" },
         { "right-ctrl", "Control_R" },
+
+#ifdef __APPLE__
+        { "cmd", "Meta_L" },
+        { "lcmd", "Meta_L" },
+        { "leftcmd", "Meta_L" },
+        { "left-cmd", "Meta_L" },
+        { "rcmd", "Meta_R" },
+        { "rightcmd", "Meta_R" },
+        { "right-cmd", "Meta_R" },
+#endif
 
         { "cmd", "Control_L" },
         { "lcmd", "Control_L" },
