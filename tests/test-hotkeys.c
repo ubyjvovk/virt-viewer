@@ -62,6 +62,8 @@ test_hotkeys_good(void)
         "zoom-in=shift+f2,zoom-out=shift+f3,zoom-reset=shift+f4",
         "release-cursor=cmd+alt+r",
         "release-cursor=meta+q",
+        "release-cursor=cmd+alt",
+        "release-cursor=meta",
         // Setting the smartcard hotkeys causes
         // gtk_application_get_accels_for_action() in
         // virt_viewer_update_smartcard_accels() to call
