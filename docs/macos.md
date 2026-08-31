@@ -1,0 +1,528 @@
+# Building on macOS
+
+virt-viewer and remote-viewer can be built natively on macOS using
+Homebrew-provided dependencies.
+
+## Prerequisites
+
+Install the build tools and libraries with Homebrew:
+
+```sh
+brew install meson ninja pkgconf gtk+3 gtk-vnc spice-gtk spice-protocol libvirt libvirt-glib vte3 libxml2 gettext adwaita-icon-theme gtk-mac-integration dylibbundler
+```
+
+## Build & test
+
+The macOS build helper configures the project when necessary, compiles it, and
+runs the test suite:
+
+```sh
+bash build-aux/macos/check.sh
+```
+
+To run the equivalent commands manually, first expose Homebrew's keg-only
+`libxml2` package to `pkg-config`:
+
+```sh
+export PKG_CONFIG_PATH="$(brew --prefix)/opt/libxml2/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+meson setup build
+ninja -C build
+meson test -C build
+```
+
+The helper sets `PKG_CONFIG_PATH` automatically.
+
+## Running
+
+Run remote-viewer directly from the build directory:
+
+```sh
+build/src/remote-viewer
+```
+
+## Feature matrix
+
+| Feature | Available on macOS |
+| --- | --- |
+| SPICE | Yes |
+| VNC | Yes |
+| libvirt | Yes |
+| VTE | Yes |
+| `spice://` / `vnc://` URLs and `.vv` files | Yes, from the `.app` bundle (see "URL and file handlers") |
+| oVirt (`govirt-1.0`, `rest-1.0`) | No; auto-disabled |
+| bash-completion | No; auto-disabled |
+
+## Packaging
+
+`build-aux/macos/make-bundle.sh` turns a finished meson build into a
+self-contained, relocatable, ad-hoc-signed `Remote Viewer.app` that runs on a
+Mac without Homebrew installed.
+
+```sh
+bash build-aux/macos/check.sh          # configure, compile, test
+bash build-aux/macos/make-bundle.sh    # produces "build/Remote Viewer.app"
+```
+
+The script can be run from any directory and is re-runnable — it wipes and
+recreates the bundle every time. It honours three environment variables:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `BUILD_DIR` | `build` | configured meson build directory to install from |
+| `APP_DIR` | `$BUILD_DIR/Remote Viewer.app` | output bundle |
+| `BREW_PREFIX` | `$(brew --prefix)` | where the runtime data is copied from |
+
+It finishes by printing the bundle path and its size.
+
+### What ends up in the bundle
+
+```
+Remote Viewer.app/Contents/
+├── Info.plist                     generated from build-aux/macos/Info.plist.in
+├── PkgInfo                        "APPL????"
+├── MacOS/
+│   ├── remote-viewer-launcher     CFBundleExecutable (see below)
+│   ├── remote-viewer
+│   └── virt-viewer
+└── Resources/
+    ├── remote-viewer.icns
+    ├── lib/                       all non-system dylibs, plus the dlopen()ed
+    │                              gdk-pixbuf loaders, GTK immodules and their
+    │                              caches
+    └── share/                     locale, icons/hicolor, icons/Adwaita,
+                                   glib-2.0/schemas, mime
+```
+
+* **Libraries** are copied and relinked by `dylibbundler` to
+  `@executable_path/../Resources/lib/`. The script runs it twice — once over
+  the two executables, then once over every bundled `.so` module, because
+  modules are `dlopen()`ed and so are invisible to the first dependency walk.
+  It then fails the build if any `otool -L` line in the bundle still points at
+  `/opt/homebrew` or `/usr/local`.
+* **Runtime data that meson does not install** is copied from the Homebrew
+  prefix: the GSettings schemas (recompiled with `glib-compile-schemas`), the
+  shared MIME database (rebuilt with `update-mime-database` so virt-viewer's
+  own `.vv` type is registered), and the Adwaita icon theme. Only the
+  `16x16 22x22 24x24 32x32 48x48 scalable symbolic` subtrees of Adwaita are
+  taken, which is what keeps the bundle small. Homebrew resource symlinks are
+  dereferenced while copying, so the result does not depend on Cellar paths.
+* **The icon** is built with `sips` + `iconutil` from `icons/*/virt-viewer.png`.
+  The tree only ships up to 256×256, so the 64, 128, 512 and 1024 px iconset
+  members are derived from the 256 px master.
+
+### What is deliberately *not* bundled
+
+* **GStreamer plugins.** SPICE audio and GStreamer-based video decoding are out
+  of scope for the bundle; the `libgst*` dylibs that spice-gtk links against are
+  bundled, but no plugins (`lib/gstreamer-1.0/`) are, so audio playback does not
+  work from the `.app`. Run the binary from a Homebrew build if you need it.
+* **oVirt support** (`govirt-1.0`, `rest-1.0`) — no Homebrew formula, so it is
+  auto-disabled at configure time and cannot be bundled.
+* **GIO modules** (`lib/gio/modules`, e.g. glib-networking's TLS backend).
+  SPICE and VNC do their own TLS, so nothing in the bundle needs them.
+* **Linux desktop metadata** — `share/applications` and `share/metainfo` are
+  installed by meson but have no meaning inside a `.app`.
+
+### Why there is a launcher script
+
+`CFBundleExecutable` is `remote-viewer-launcher`, a small shell script that
+`exec`s the real `remote-viewer` next to it. It exists for exactly two
+environment variables:
+
+* `GDK_PIXBUF_MODULE_FILE` → `Resources/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache`
+* `GTK_IM_MODULE_FILE` → `Resources/lib/gtk-3.0/3.0.0/immodules.cache`
+
+Both must be **absolute** paths, which rules out baking them into `Info.plist`
+as `LSEnvironment` entries: a relocatable app does not know at build time where
+it will be installed. The launcher resolves them from its own location at
+startup instead.
+
+The module paths *inside* those two caches have the same problem, and neither
+gdk-pixbuf nor GTK resolves a relative entry against the cache file — both hand
+it straight to `g_module_open()`, where `dlopen()` reads it relative to the
+process's working directory and fails. `make-bundle.sh` therefore writes the
+caches with bundle-relative module paths, and the launcher rewrites them into
+absolute ones under
+`${XDG_CACHE_HOME:-~/Library/Caches}/org.virt-manager.remote-viewer/` on every
+launch, so moving the bundle regenerates them. If that directory cannot be
+created the bundled caches are used as they are; SVG icons and non-default
+input methods are then unavailable, which is a degraded UI rather than no
+application.
+
+Everything else is handled inside the binary rather than by the launcher: as
+described under "Running from a bundle" below, `virt_viewer_util_init()`
+derives the locale directory, `XDG_DATA_DIRS` and `GSETTINGS_SCHEMA_DIR` from
+the bundle at runtime. The launcher also drops a `-psn_0_...` argument if
+LaunchServices adds one, which the option parser would otherwise reject.
+
+### Signing
+
+`make-bundle.sh` ad-hoc signs the result and verifies it. Signing goes inside
+out: every bundled `.dylib` and `.so` is signed individually first, then the
+bundle as a whole (`codesign --force --deep --sign -`). The individual pass is
+not optional — `--deep` descends into nested *bundles* but only seals loose
+Mach-O files as resources, and `install_name_tool` has invalidated the
+signature Homebrew shipped on each of them. On Apple silicon, dyld kills the
+process outright the first time it `dlopen()`s a module whose signature does
+not match.
+
+An ad-hoc signature is enough to run the app locally and to satisfy the
+hardened-runtime checks of libraries loaded from the bundle, but Gatekeeper
+will still quarantine it after a download.
+
+To ship the bundle, re-sign it with a Developer ID Application certificate:
+
+```sh
+codesign --force --deep --timestamp --options runtime \
+         --sign "Developer ID Application: Your Name (TEAMID)" \
+         "build/Remote Viewer.app"
+codesign --verify --deep --strict --verbose=2 "build/Remote Viewer.app"
+```
+
+Notarization (`xcrun notarytool submit` + `xcrun stapler staple`) is not covered
+by this script.
+
+## Distribution
+
+### Homebrew formula
+
+`build-aux/macos/virt-viewer.rb` is a head-only Homebrew formula that
+builds the upstream default branch. It only produces a macOS-capable
+build once this port is merged upstream; until then, install it from a
+fork or tap carrying the port. Install it directly from a checkout
+with:
+
+```sh
+brew install --HEAD --formula ./build-aux/macos/virt-viewer.rb
+```
+
+To use it from a local tap instead, create a tap and copy the formula into it:
+
+```sh
+brew tap-new local/virt-viewer
+cp build-aux/macos/virt-viewer.rb \
+   "$(brew --repository local/virt-viewer)/Formula/virt-viewer.rb"
+brew install --HEAD local/virt-viewer/virt-viewer
+```
+
+The formula builds and installs the command-line `remote-viewer` and
+`virt-viewer` programs. It does not create the standalone application bundle.
+
+### Disk image
+
+After building the application bundle, package it in a compressed DMG with:
+
+```sh
+bash build-aux/macos/make-bundle.sh
+bash build-aux/macos/make-dmg.sh
+```
+
+By default the input is `build/Remote Viewer.app` and the output is
+`build/virt-viewer-<version>-macos.dmg`, where `<version>` comes from the bundle's
+`Info.plist`. The disk image contains the application and an `Applications`
+symlink for drag-and-drop installation. To use other paths, pass the app bundle
+and output DMG as the first and second arguments:
+
+```sh
+bash build-aux/macos/make-dmg.sh \
+    "/path/to/Remote Viewer.app" "/path/to/RemoteViewer.dmg"
+```
+
+Creating the DMG does not add Developer ID signing or notarization; the
+signing notes above still apply to a distributed build.
+
+## Continuous integration
+
+GitHub Actions workflow `.github/workflows/macos.yml` builds and tests every
+push and pull request on `macos-latest` (Homebrew dependencies plus
+`bash build-aux/macos/check.sh`). Meson logs are uploaded as artifacts; a
+`.app` bundle is uploaded too when one is present under `build/`. This
+workflow runs only on GitHub-hosted mirrors and forks of the project;
+upstream's GitLab CI has no macOS runners and does not execute it.
+
+## Running from a bundle
+
+When the binary runs from inside a macOS `.app` bundle, the traditional
+trick of baking the compile-time install prefix (`LOCALE_DIR`) into the
+binary no longer works: a bundled app is relocatable, so the prefix is not
+fixed. Instead, the app derives its data paths from the bundle at runtime.
+
+`virt_viewer_util_get_bundle_resources_dir()` in `src/virt-viewer-util.c`
+returns the bundle's `Contents/Resources` directory. It uses only
+CoreFoundation (C API) — `CFBundleGetMainBundle()` +
+`CFBundleCopyResourcesDirectoryURL()` + `CFURLGetFileSystemRepresentation()`.
+Because CoreFoundation returns a bundle for any executable, "in a bundle"
+is decided by the trailing path shape: the resources directory must end in
+`.app/Contents/Resources`. Otherwise the function returns NULL and the app
+falls back to its compile-time paths, so behaviour outside a bundle (a
+plain `build/src/remote-viewer`, or a `/opt/homebrew` install) is unchanged.
+
+When a bundle resources dir is found, `virt_viewer_util_init()` sets the
+following, all before GTK is initialised:
+
+* **Locale**: `bindtextdomain(GETTEXT_PACKAGE, "<res>/share/locale")` — so
+  translations ship inside the bundle.
+* **`XDG_DATA_DIRS`** → `<res>/share` — set only if currently unset; makes
+  the icon theme and the mime database bundled under the Resources dir
+  discoverable. Because it is only set when unset, a user-supplied value is
+  never clobbered.
+* **`GSETTINGS_SCHEMA_DIR`** → `<res>/share/glib-2.0/schemas` — set only if
+  currently unset, so GSettings schema files bundled in the app are found.
+
+The CoreFoundation framework is linked on macOS only, gated in
+`src/meson.build` behind `host_machine.system() == 'darwin'`.
+
+## macOS integration
+
+virt-viewer and remote-viewer optionally integrate with the Cocoa desktop
+through [gtk-mac-integration](https://gitlab.gnome.org/GNOME/gtk-mac-integration)
+(Homebrew: `brew install gtk-mac-integration`, pkg-config module
+`gtk-mac-integration-gtk3`).
+
+### Build option
+
+    -Dmacos_integration=auto|enabled|disabled     (default: auto)
+
+The dependency is only ever looked up when the host system is `darwin`; on
+Linux and Windows the option is ignored entirely, so nothing about those
+builds changes. With `auto` the integration is compiled in whenever
+`gtk-mac-integration-gtk3` is installed, and silently skipped when it is not.
+
+When the dependency is found, meson defines `HAVE_GTK_MAC_INTEGRATION` in
+`config.h` and adds `src/virt-viewer-macos.c` to the build; that file is the
+only place the library is used, and every call site in the portable sources is
+wrapped in `#ifdef HAVE_GTK_MAC_INTEGRATION`.
+
+### What it does
+
+* **Global menu bar.** The menus normally reached through the header bar
+  buttons (Machine, Send key, More actions) also appear in the macOS menu bar
+  at the top of the screen. The header bar buttons stay where they are — the
+  two are views of the same `GMenu` models, so the Machine menu keeps listing
+  displays as they come and go, and the Send key menu follows the configured
+  release-cursor hotkey.
+* **Quartz accelerators.** GTK renders accelerators the Cocoa way, so
+  `<Control>` accelerators are shown and handled as ⌘ combinations.
+* **Quit / ⌘Q.** What quitting does depends on whether there is a session:
+
+  * **A session is open** (a connection is up or being made) — the normal
+    `virt_viewer_app_maybe_quit()` path, so the "Do you want to close the
+    session?" confirmation still appears and cancelling it really does cancel.
+    A second ⌘Q while that confirmation is up is ignored rather than stacking
+    another copy of it.
+  * **No session** (typically the connect dialog, but also after a connection
+    has ended) — there is nothing to ask about, so the application quits
+    straight away. The connect dialog runs a nested main loop of its own,
+    which `g_application_quit()` cannot unwind; it is therefore cancelled
+    first, exactly as its Cancel button and its window close button do, and
+    `remote_viewer_start()` then returns "no connection was chosen" and the
+    application exits. Without that step the process would be left running
+    with no windows and no way to reach it.
+
+  Either way Cocoa's own termination is vetoed and the application exits
+  through `g_application_quit()`, so the shutdown path is the same one the
+  in-window Quit item and the window close button take. One visible
+  consequence of the veto: a scripted `tell application "Remote Viewer" to
+  quit` gets a "User canceled" (-128) reply from Cocoa even though the
+  application does quit.
+* **About.** The application menu's About item opens the usual About dialog.
+* **Dock reopen.** Activating the app from the Dock un-minimizes any window
+  the user had minimized.
+
+### How the menu bar is built
+
+Unlike a classic GTK application, virt-viewer has no in-window `GtkMenuBar` to
+hand over: its menus are `GtkMenuButton` popovers in the header bar. Each
+`VirtViewerWindow` therefore builds an extra `GtkMenuBar` from the same menu
+models and passes it to `virt_viewer_macos_window_set_menubar()`, which mirrors
+it into the Cocoa menu bar.
+
+That extra bar is packed hidden under the window as an overlay child of
+`viewer-overlay` and marked `no-show-all`, so it is never drawn. Packing it
+there makes `gtk_widget_get_toplevel()` return the real `GtkWindow`, allowing
+gtk-mac-integration to install the mirrored menu accelerators on that window.
+Being inside the `GtkApplicationWindow` also lets the bar's items resolve
+their `win.*` and `app.*` actions, exactly as the header bar popovers do.
+
+Because there is one Cocoa menu bar but one `GtkMenuBar` per window, the menu
+bar is re-pointed at whichever window is active (`notify::is-active`). With
+several displays open, the menu bar therefore always reflects the focused
+window.
+
+### URL and file handlers
+
+The bundle registers itself with LaunchServices as a handler for two URL
+schemes and for `.vv` connection files, so that `open spice://host:port` or a
+double-clicked `.vv` file starts (or reuses) Remote Viewer.app and connects,
+exactly as `remote-viewer <argument>` does from a shell.
+
+| Declared in `Info.plist` | Value |
+| --- | --- |
+| `CFBundleURLTypes` | schemes `spice` and `vnc`, role Viewer |
+| `CFBundleDocumentTypes` | extension `vv`, MIME `application/x-virt-viewer`, UTI `org.virt-manager.virt-viewer.vv`, role Viewer, rank Owner |
+| `UTExportedTypeDeclarations` | `org.virt-manager.virt-viewer.vv`, conforming to `public.data` |
+
+The `.vv` UTI is *exported* rather than imported because virt-viewer defines
+the format; it mirrors the freedesktop MIME type in
+`data/virt-viewer-mime.xml.in`, which is what the Linux packaging registers.
+
+`vnc://` is declared without an `LSHandlerRank`, because macOS ships Screen
+Sharing.app as the system handler for that scheme and it stays the default.
+Remote Viewer only opens a `vnc://` URL if the user picks it explicitly (Finder
+→ Get Info → Open with, or an equivalent LaunchServices change).
+
+`spice` is declared with `LSHandlerRank` `Owner` because virt-viewer defines
+that scheme's UX; `vnc` is deliberately rank-free so that Remote Viewer never
+steals the default from a user's chosen VNC client.
+
+#### How a request reaches the connection code
+
+Cocoa delivers both kinds of request as Apple events, and hands both to the
+application delegate's `-application:openURLs:`. gtk-mac-integration implements
+that method and emits its `NSApplicationOpenFile` signal once per URL — despite
+the name, for URL-scheme opens as well as document opens. `src/virt-viewer-macos.c`
+connects to that signal, turns the `file://` URI of a document back into a local
+path, and calls the handler that `remote-viewer` installed with
+`virt_viewer_macos_set_open_uri_func()`.
+
+What `remote-viewer` then does depends on whether it already has a connection:
+
+* **No connection yet** — the application is sitting in the connect dialog's
+  nested main loop (this is also the state right after LaunchServices launches
+  it *because* of the URL). The URI is written into the dialog's address entry
+  and the entry is activated, so it follows exactly the path a typed-in address
+  takes, including the dialog reappearing with an error message if the
+  connection fails.
+* **Already connected** — a `VirtViewerApp` drives exactly one connection, so
+  the new URI is started in a second process
+  (`virt_viewer_macos_spawn_uri()` re-runs the bundle's own executable with the
+  URI as its argument).
+
+#### Single-instance behaviour
+
+There is no single-instance behaviour, by design. `remote-viewer` is a
+`G_APPLICATION_NON_UNIQUE` application on every platform: `remote-viewer URI`
+twice gives two processes on Linux too. macOS could not do otherwise anyway —
+GApplication's uniqueness is implemented over D-Bus, which is not present here.
+
+The practical consequence is that opening a second URL while a connection is
+up leaves you with two Remote Viewer processes, both in the Dock under one
+icon. Quitting one does not quit the other.
+
+#### Registering the app during development
+
+LaunchServices only knows about bundles it has seen. A freshly built
+`build/Remote Viewer.app` has never been in `/Applications`, so register it by
+hand before testing:
+
+```sh
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$lsregister" -f "$PWD/build/Remote Viewer.app"
+```
+
+Then check which application actually claims a scheme or a file:
+
+```sh
+mdls -name kMDItemContentType build/qa/test.vv
+"$lsregister" -dump | grep -B 5 -A 5 'spice:'
+```
+
+Rebuilding the bundle in place keeps the registration; moving or renaming it
+needs another `lsregister -f`. `"$lsregister" -kill -r -domain local -domain
+user` rebuilds the whole database if it gets confused — it is slow, so use it
+only as a last resort.
+
+### Known limitations
+
+* Accelerators defined in the `GtkAccelGroup` of `virt-viewer.ui` rather than
+  on the menu model itself are not shown next to the mirrored menu items.
+  The shortcuts still work; only the labels in the macOS menu bar are blank.
+* About appears twice: once in the application menu (Cocoa's own slot) and
+  once inside the "More actions" menu, which is the same item the header bar
+  popover shows.
+* Dock reopen only un-minimizes windows. It deliberately does not
+  `gtk_window_present()` anything, which with several open displays would pull
+  focus away from the window the user clicked on.
+* Opening a URL cold (nothing running) briefly shows the connect dialog before
+  the Apple event arrives and fills it in: the dialog is opened from
+  `GApplication::startup`, which runs before Cocoa delivers the launch event.
+* ⌘Q pressed while the "Unable to connect to the graphic server" dialog is up
+  asks the "Do you want to close the session?" question — the failed session
+  object still exists at that point — and confirming it does not take effect
+  until that dialog has been dismissed, after which the connect dialog comes
+  back. Quitting from the connect dialog then works normally.
+* Building with `-Dmacos_integration=disabled` (or on a machine without the
+  library) produces a working application with the plain GTK behaviour: menus
+  only in the header bar, and no macOS menu bar.
+## Keyboard
+
+### Default hotkeys
+
+Global hotkeys (see `--hotkeys` in the man pages) only fire while the guest
+display widget does *not* have input focus. Their defaults follow the
+upstream Ctrl+Alt combinations and are therefore awkward on a Mac keyboard:
+
+| Action | Default binding | Mac equivalent |
+| --- | --- | --- |
+| release-cursor | `ctrl+alt` | `ctrl+option` |
+| secure-attention | `ctrl+alt+del` | (via menu, below) |
+
+`--hotkeys` accepts case-insensitive modifier tokens `shift`, `ctrl`, `alt`,
+`cmd` and `meta`. On macOS only, both `cmd` and `meta` select the **Command**
+key, while **Option** is selected with `alt`. On other platforms, `cmd`
+retains its legacy meaning as an alias for `ctrl`. For example:
+
+```sh
+remote-viewer --hotkeys=release-cursor=cmd+alt+r
+```
+
+binds ⌘⌥R (spelt `cmd+alt+r`) as the release-cursor hotkey.
+
+### Sending Ctrl+Alt+Del
+
+The guest sees nothing of the host's Command key: the Command key
+itself is consumed by the host when pressed as part of a hotkey; the
+*Send key* menu can still synthesize Command-based combinations in the
+guest. To send a key combination (such as
+Ctrl+Alt+Del for a Windows guest) to the guest, use the **Send key** menu (header bar *Send key* button):
+*Send key* → *Ctrl+Alt+Del*. This goes through the guest channel
+and is unaffected by the host hotkey bindings.
+
+> For more on the Send key menu and how its accelerators are handled on
+> quartz, see `virt_viewer_window_action_send_key()` in
+> `src/virt-viewer-window.c` and `virt_viewer_display_send_keys()` in
+> `src/virt-viewer-display.c`.
+
+## Known issues
+
+Found by a QA pass on the packaged `Remote Viewer.app` (macOS 26.4, Apple
+silicon, `build-aux/macos/make-bundle.sh` output). The bundle launches, connects,
+reports connection errors and quits with ⌘Q; everything below is cosmetic or
+environmental. Nothing below is fixed yet.
+
+* **Homebrew paths leak into `immodules.cache`.** Both the bundled cache and
+  the absolute-path copy the launcher writes to
+  `~/Library/Caches/org.virt-manager.remote-viewer/` still reference
+  `/opt/homebrew/Cellar/gtk+3/<version>/share/locale` as the translation
+  directory of each input module. The modules load, but their names are
+  untranslated on a machine that only has the bundle
+  (`grep -c homebrew "build/Remote Viewer.app/Contents/Resources/lib/gtk-3.0/3.0.0/immodules.cache"`
+  → 11).
+* **The main viewer window is not visually native.** It keeps the GTK
+  client-side header bar with its own minimise/maximise/close buttons instead
+  of macOS traffic lights. The connect dialog and the error dialog do get a
+  native title bar. Cosmetic only.
+* **GTK window contents are invisible to the accessibility API.** Only the
+  title bar buttons and the window title appear in the AX tree, and
+  `AXFocusedWindow` is unset, so VoiceOver and AX-driven automation cannot
+  reach the dialogs or drive the app.
+* **The connection-error dialog is placed in the screen corner.** "Unable to
+  connect to the graphic server" opens flush at the top-left of the display,
+  under the menu bar, instead of centred on the window that spawned it.
+* **A freshly built bundle may not come to the front on its first launch.**
+  The first `open "build/Remote Viewer.app"` after `make-bundle.sh` left the
+  window on another display without activating the app; every later launch
+  activated normally. Not diagnosed.
+* **Gatekeeper rejects the bundle** (`spctl --assess --type execute` →
+  `rejected`) because the signature is ad-hoc. Expected, not a defect: see
+  [Signing](#signing) for the Developer ID re-sign that fixes it.
