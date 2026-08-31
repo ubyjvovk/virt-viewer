@@ -36,7 +36,8 @@
  * gtk-mac-integration mirrors into the Cocoa menu bar. */
 #define VIRT_VIEWER_MACOS_MENUBAR_KEY "virt-viewer-macos-menubar"
 /* The menu bar currently mirrored into Cocoa, so a window that regains focus
- * repeatedly does not reinstall the same one. */
+ * repeatedly does not reinstall the same one. Kept weak so destruction clears
+ * the guard before focus moves to another live window. */
 static GtkWidget *virt_viewer_macos_current_menubar;
 /* Where the VirtViewerApp keeps the app-menu About item alive. */
 #define VIRT_VIEWER_MACOS_ABOUT_KEY "virt-viewer-macos-about-item"
@@ -196,11 +197,12 @@ virt_viewer_macos_set_cancel_modal_func(VirtViewerMacosCancelModalFunc func)
 gboolean
 virt_viewer_macos_spawn_uri(const gchar *uri, GError **error)
 {
-    g_autofree gchar *executable = gtkosx_application_get_executable_path();
+    g_autofree gchar *executable = NULL;
     gchar *argv[3];
 
     g_return_val_if_fail(uri != NULL, FALSE);
 
+    executable = gtkosx_application_get_executable_path();
     if (executable == NULL) {
         g_set_error_literal(error, G_SPAWN_ERROR, G_SPAWN_ERROR_FAILED,
                             _("Not running from an application bundle"));
@@ -246,9 +248,10 @@ virt_viewer_macos_init(VirtViewerApp *app)
     gtk_widget_show(about);
     g_signal_connect(about, "activate",
                      G_CALLBACK(virt_viewer_macos_about_activate), app);
+    g_object_ref_sink(about);
     gtkosx_application_set_about_item(osxapp, about);
     g_object_set_data_full(G_OBJECT(app), VIRT_VIEWER_MACOS_ABOUT_KEY,
-                           g_object_ref_sink(about), g_object_unref);
+                           about, g_object_unref);
 
     g_signal_connect(osxapp, "NSApplicationBlockTermination",
                      G_CALLBACK(virt_viewer_macos_block_termination), app);
@@ -259,6 +262,11 @@ virt_viewer_macos_init(VirtViewerApp *app)
      * per NSURL. */
     g_signal_connect(osxapp, "NSApplicationOpenFile",
                      G_CALLBACK(virt_viewer_macos_open_file), app);
+    /* gtk-mac-integration 3.0.2 delivers URLs through OpenFile, while master
+     * emits the separate OpenURL signal; connect it when available. */
+    if (g_signal_lookup("NSApplicationOpenURL", GTKOSX_TYPE_APPLICATION) != 0)
+        g_signal_connect(osxapp, "NSApplicationOpenURL",
+                         G_CALLBACK(virt_viewer_macos_open_file), app);
 }
 
 static void
@@ -270,9 +278,16 @@ virt_viewer_macos_install_menubar(GtkWidget *menubar)
     if (menubar == virt_viewer_macos_current_menubar)
         return;
 
+    if (virt_viewer_macos_current_menubar != NULL) {
+        g_object_remove_weak_pointer(G_OBJECT(virt_viewer_macos_current_menubar),
+                                     (gpointer *)&virt_viewer_macos_current_menubar);
+    }
+
     gtkosx_application_set_menu_bar(gtkosx_application_get(),
                                     GTK_MENU_SHELL(menubar));
     virt_viewer_macos_current_menubar = menubar;
+    g_object_add_weak_pointer(G_OBJECT(virt_viewer_macos_current_menubar),
+                              (gpointer *)&virt_viewer_macos_current_menubar);
 }
 
 static void
