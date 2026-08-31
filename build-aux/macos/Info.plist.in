@@ -4,7 +4,8 @@
   Info.plist template for "Remote Viewer.app".
 
   build-aux/macos/make-bundle.sh substitutes @VERSION@ with the meson project
-  version and writes the result to Contents/Info.plist.
+  version and @MINOS@ with the deployment target of the bundled main
+  executable, and writes the result to Contents/Info.plist.
 
   CFBundleExecutable is the small shell launcher installed next to the real
   binary; see the launcher rationale in docs/macos.md.
@@ -33,8 +34,12 @@
   <string>????</string>
   <key>CFBundleVersion</key>
   <string>@VERSION@</string>
+  <!-- Substituted with the `minos` of the bundled main executable: the
+       Homebrew libraries the bundle carries are built against the builder's
+       SDK, so an older macOS that LaunchServices would have allowed to launch
+       only gets a silent dyld abort. -->
   <key>LSMinimumSystemVersion</key>
-  <string>12.0</string>
+  <string>@MINOS@</string>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key>
@@ -43,6 +48,9 @@
        these to the app as Apple events, which reach the code through
        gtk-mac-integration's NSApplicationOpenFile signal; see
        src/virt-viewer-macos.c and docs/macos.md ("URL and file handlers").
+
+       `spice` is claimed with LSHandlerRank Owner — no other macOS
+       application handles spice:// and virt-viewer defines the scheme.
 
        `vnc` is deliberately declared with role Viewer and no LSHandlerRank:
        macOS ships Screen Sharing.app as the system handler for vnc:// and it
@@ -58,6 +66,8 @@
       <array>
         <string>spice</string>
       </array>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
     </dict>
     <dict>
       <key>CFBundleURLName</key>
