@@ -75,6 +75,22 @@ platform-guarded so Linux/Windows are untouched.
   every bundled Mach-O re-signed after the last rewrite; GUI launch of the
   bundle for 10 s adds 0 files to ~/Library/Logs/DiagnosticReports; no
   dlopen warnings in stderr; `--version` still fine.
+- 2026-08-31 — **mac-port-pr built** (tip ac83b1f, 8 commits, worktree
+  `.tigerteam/worktrees/_pr`): build meson / bundle paths / cmd+meta hotkeys /
+  macos module / URL+.vv handlers / packaging / docs / CI. util.c, window.c,
+  src/meson.build split at hunk level; every code commit built + 4/4 tests
+  green on the host. Intentional deviations from mac-port (4): .gitignore
+  trimmed (/build-nomac, /.env), check.sh comment de-tigerteamed, docs/macos.md
+  drops the T-0009-report path, po/POTFILES gains src/virt-viewer-macos.c
+  (follow-up (c) fixed; xgettext validates). po/virt-viewer.pot deliberately
+  NOT regenerated (Weblate-managed; diff is line churn + an unrelated stale
+  string). Commit messages carry Claude-Session trailers — ask the user
+  whether to strip (rebase) before pushing upstream.
+- 2026-08-31 — PM recommendation accepted by user: upstream MR first
+  (gitlab.com/virt-viewer/virt-viewer — a GitLab MR, not a GitHub PR; `gitlab`
+  remote exists, fork+push needs approval). homebrew-core only after upstream
+  merge + release (precedent: virt-manager in core; core needs official
+  tarballs). Optional now: personal tap / cask from a GitHub release DMG.
 - 2026-08-30 16:35 — Naming (user decision): the bundle stays "Remote
   Viewer.app" (matches upstream's .desktop Name= and the Windows shortcut;
   remote-viewer is the URI/.vv app); the DMG is renamed to
@@ -151,13 +167,14 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 14:05 — board created; T-0001..T-0009 in todo/; Seatbelt build+test verified green; fleet released (`tigerteam up` was already running), events --wait armed.
 
 ## Next actions
-- After the Terminal restart: `tigerteam status`; check the supervisor is alive
-  (`tigerteam check`), else `tigerteam up`; arm `tigerteam events --wait`.
-- **T-0002 is in review/ now** (grok, landed 14:16 — unreviewed). Review it first (expect docs/macos.md conflict → append section;
-  meson.build touches near T-0005's block).
-- Review T-0005 attempt 2: require the pasted fatal-criticals run.
-- When T-0002 + T-0005 are done, T-0004 and T-0007 become eligible automatically.
-- Review landings oldest-first; after T-0002 + T-0005 land, promote QA T-0009.
+- Board drained; workers idle. PR branch `mac-port-pr` is ready locally
+  (ac83b1f) — NOTHING pushed. Waiting on the user for:
+  (1) strip Claude-Session trailers? (2) approval to create/push a GitLab
+  fork and open the MR against virt-viewer/virt-viewer; (3) optionally,
+  approval to publish a personal Homebrew tap / GitHub release DMG.
+- MR description should flag: GH Actions workflow offered as optional
+  (upstream CI is GitLab+lcitool), in-tree brew formula rationale (parallels
+  MSI tooling), known-issues section in docs/macos.md.
 
 ## How to resume
 1. Read this file. 2. `tigerteam status`. 3. review/ then blocked/.
