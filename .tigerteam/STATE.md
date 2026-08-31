@@ -86,6 +86,28 @@ platform-guarded so Linux/Windows are untouched.
   NOT regenerated (Weblate-managed; diff is line churn + an unrelated stale
   string). Commit messages carry Claude-Session trailers — ask the user
   whether to strip (rebase) before pushing upstream.
+- 2026-08-31 — **3-way stress review of mac-port-pr done** (T-0012 codex /
+  T-0013 opus / T-0014 ds, same task, independent; all accepted, T-0011
+  parked in review/ pending fixes). Blocker sets were nearly disjoint.
+  CONFIRMED real: modifier-only `cmd` release hotkey uses the second table
+  `spice_key_to_gdk_key` → Control_L on macOS (codex B1, PM-verified);
+  APP_DIR=`rm -rf` footgun in make-bundle.sh (codex B3); LSMinimumSystemVersion
+  12.0 vs minos 26.0 binaries (opus B3); dangling static menubar pointer on
+  multi-display window destroy (opus B4); brew formula head = personal fork
+  (opus B2 + codex B4); CI bundle-upload step unreachable (opus N1 + codex
+  N4); man-page "never reach the guest" false (opus N2); docs dead symbol
+  (opus N3); Info.plist declares handlers in integration-disabled builds
+  (codex B2); launcher cache write non-atomic vs spawn-second-copy (opus N6);
+  copy_modules empty-glob abort (opus N5). REFUTED: both ds blockers —
+  reviewed gtk-mac-integration *master*, but shipped 3.0.2 emits
+  NSApplicationOpenFile with url absoluteString (PM-verified via brew unpack;
+  URL/.vv handling + docs are correct for 3.0.2; forward-compat hardening =
+  runtime g_signal_lookup for NSApplicationOpenURL). INTENTIONAL, disclose in
+  MR: meta-on-all-platforms + Meta/Super accel widening (3-way convergent;
+  the Super half fixes a latent upstream win+X bug). Rebase-time items (user):
+  Signed-off-by (DCO universal upstream — opus B1), strip Claude-Session
+  trailers, soften stack-protector commit wording (aarch64 excluded — codex
+  N3), retarget formula head to upstream GitLab.
 - 2026-08-31 — PM recommendation accepted by user: upstream MR first
   (gitlab.com/virt-viewer/virt-viewer — a GitLab MR, not a GitHub PR; `gitlab`
   remote exists, fork+push needs approval). homebrew-core only after upstream
@@ -167,14 +189,21 @@ platform-guarded so Linux/Windows are untouched.
 - 2026-08-30 14:05 — board created; T-0001..T-0009 in todo/; Seatbelt build+test verified green; fleet released (`tigerteam up` was already running), events --wait armed.
 
 ## Next actions
-- Board drained; workers idle. PR branch `mac-port-pr` is ready locally
-  (ac83b1f) — NOTHING pushed. Waiting on the user for:
-  (1) strip Claude-Session trailers? (2) approval to create/push a GitLab
-  fork and open the MR against virt-viewer/virt-viewer; (3) optionally,
-  approval to publish a personal Homebrew tap / GitHub release DMG.
-- MR description should flag: GH Actions workflow offered as optional
-  (upstream CI is GitLab+lcitool), in-tree brew formula rationale (parallels
-  MSI tooling), known-issues section in docs/macos.md.
+- **Fix wave pending user go** (proposed tickets, land on mac-port then PM
+  re-folds into the mac-port-pr series before push):
+  T-0015 (C2) spice_key_to_gdk_key cmd→Meta_L under __APPLE__ + modifier-only
+  test; T-0016 (C2) make-bundle.sh hardening: APP_DIR guard, derive
+  LSMinimumSystemVersion from built minos, refuse (or strip plist decls) when
+  HAVE_GTK_MAC_INTEGRATION absent, empty-glob guard, atomic cache mv, spice
+  LSHandlerRank decision; T-0017 (C2) macos.c robustness: weak menubar
+  pointer, ref_sink-before-handover, precondition order, NULL-GError guard,
+  ifdef/else dead cmd rows, optional NSApplicationOpenURL runtime lookup;
+  T-0018 (C1) docs/man: "never reach the guest" wording, dead symbol ref, CI
+  caveat, formula head → upstream GitLab (+ docs line); T-0019 (C1) CI: add
+  make-bundle.sh step so the upload is reachable.
+- Then rebase-time items with the user (DCO signoff, strip trailers, commit
+  wording), re-verify, and the push/MR approvals as before. Optionally tap/DMG.
+- `mac-port-pr` (ac83b1f) unchanged; NOTHING pushed.
 
 ## How to resume
 1. Read this file. 2. `tigerteam status`. 3. review/ then blocked/.
