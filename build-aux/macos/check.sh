@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# macOS build + test entry point (also the Tiger Team test_cmd).
+# macOS build + test entry point.
 #   build-aux/macos/check.sh            configure (if needed), compile, run meson tests
 #   BUILD_DIR=other build-aux/macos/check.sh
 # Requires Homebrew deps — see docs/macos.md.

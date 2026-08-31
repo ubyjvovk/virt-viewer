@@ -495,9 +495,8 @@ and is unaffected by the host hotkey bindings.
 
 ## Known issues
 
-Found by the QA pass on the packaged `Remote Viewer.app` (macOS 26.4, Apple
-silicon, `build-aux/macos/make-bundle.sh` output; full evidence and repro
-commands in `build/qa/T-0009-report.txt`). The bundle launches, connects,
+Found by a QA pass on the packaged `Remote Viewer.app` (macOS 26.4, Apple
+silicon, `build-aux/macos/make-bundle.sh` output). The bundle launches, connects,
 reports connection errors and quits with ⌘Q; everything below is cosmetic or
 environmental. Nothing below is fixed yet.
 
