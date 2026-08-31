@@ -25,6 +25,9 @@ jobs:
       - name: Build and test
         run: bash build-aux/macos/check.sh
 
+      - name: Build app bundle
+        run: bash build-aux/macos/make-bundle.sh
+
       - name: Upload meson logs
         if: always()
         uses: actions/upload-artifact@v4
