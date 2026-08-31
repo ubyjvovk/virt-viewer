@@ -1,7 +1,7 @@
 class VirtViewer < Formula
   desc "Graphical console client for virtual machines"
   homepage "https://virt-manager.org/"
-  head "https://github.com/ubyjvovk/virt-viewer.git", branch: "mac-port"
+  head "https://gitlab.com/virt-viewer/virt-viewer.git"
   license "GPL-2.0-or-later"
 
   depends_on "meson" => :build

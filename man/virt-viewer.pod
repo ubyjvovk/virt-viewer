@@ -125,8 +125,9 @@ sequence (Ctrl+Alt+Del) to the guest. Examples:
 
 Hotkey key-names are composed of modifiers (shift, ctrl, alt, cmd or
 meta) and a non-modifier key.  On macOS, C<cmd> and C<meta> both map to the
-Command key (B<Option> is C<alt>), and hotkeys using the Command key never
-reach the guest.
+Command key (B<Option> is C<alt>): the Command key itself is consumed
+by the host when pressed as part of a hotkey; the I<Send key> menu can
+still synthesize Command-based combinations in the guest.
 
 Note that hotkeys for which no binding is given are disabled. Although the
 hotkeys specified here are handled by the client, it is still possible to send
