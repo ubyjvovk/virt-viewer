@@ -4,9 +4,11 @@ A standalone SPICE client for macOS with **no GTK anywhere**: spice-client-glib
 for the protocol, AppKit/Core Animation for the window, and a keycodemapdb
 scancode table for the keyboard.
 
-Scope so far: **screen, keyboard, absolute mouse, guest cursor shape.** There
-is deliberately no clipboard, no file transfer, no USB redirection, no audio,
-no relative ("server") mouse mode, and no multi-display support.
+Scope so far: **screen, keyboard, absolute mouse, guest cursor shape**, plus a
+connect window, a password prompt and a reconnect/close dialog so the viewer
+can be launched and recovered without a terminal. There is deliberately no
+clipboard, no file transfer, no USB redirection, no audio, no relative
+("server") mouse mode, and no multi-display support.
 
 ## Build
 
@@ -35,14 +37,25 @@ IOSurface and ImageIO ship with the system.
 ## Run
 
 ```
-macos-native/build/spice-viewer spice://HOST:PORT
+macos-native/build/spice-viewer [spice://HOST:PORT]
 ```
 
 `spice://HOST:PORT` above is a placeholder — the URI is read from `argv[1]`,
 never from a compiled-in default.
 
-⌘Q quits: every key still held is released on the guest, the session is
-disconnected and the GLib thread is joined before the process exits.
+Two launch modes:
+
+- **With a URI**, the viewer connects to it immediately, exactly as it always
+  has.
+- **With no arguments**, it opens the connect window instead: a URI field
+  pre-filled with the last URI connected to from that window, and a default
+  Connect button (Return activates it). Connecting remembers the URI in
+  `NSUserDefaults` under `VsmLastURI` and then proceeds down the same path as
+  the argv case. Only the URI is remembered — never a password.
+
+⌘Q quits from any state: every key still held is released on the guest, the
+session is disconnected and the GLib thread is joined before the process
+exits. It works while a modal dialog is up too — see below.
 
 ### Environment variables
 
@@ -184,6 +197,58 @@ and the pointer the user sees is the one drawn in the guest's own pixels.
 That is the correct outcome: without hiding the local pointer there would be
 two of them.
 
+### Connect window, authentication and disconnects
+
+`vsm-connect.m` owns everything the user sees when there is no session on
+screen; `main.m` owns the state machine that moves between them:
+
+```
+connect window  --Connect-->  connected  --disconnect--> modal alert
+       ^                          ^                          |
+       +------- Close ------------+------ Reconnect ---------+
+```
+
+A session is never reused. Reconnecting — and retrying after an
+authentication failure — stops the GLib thread, releases the `VsmSpice` and
+builds a fresh one, because a `SpiceSession` that has errored out is finished
+as far as spice-client-glib is concerned. `vsm_spice_free()` defers the actual
+release to the main queue: callbacks already dispatched from the GLib thread
+still hold the struct, and the main queue is FIFO, so a block appended after
+the thread is joined runs strictly after all of them.
+
+**Authentication.** `SPICE_CHANNEL_ERROR_AUTH` is the one failure a password
+can fix, so the `disconnected` callback carries an `auth_failed` flag to
+separate it from every other cause. On an auth failure the viewer raises an
+`NSAlert` with an `NSSecureTextField` accessory (`Password for <uri>`),
+then rebuilds the session with `vsm_spice_set_password()` before
+`vsm_spice_start()`. The password is applied to the session's `password`
+property on the GLib thread, at session construction, so it is never touched
+from two threads. It lives in process memory for the run and is reused for
+later reconnects; the C-side copy is overwritten (through a `volatile`
+pointer, so the stores cannot be optimised away) before it is freed. It is
+never written to `NSUserDefaults`, never logged and never emitted by
+`VSM_TRACE`.
+
+**Errors and disconnects.** Any other terminal failure raises an alert
+showing the reason with **Reconnect** (default, Return) and **Close**
+(Escape). Close returns to the connect window; the process keeps running. The
+same alert appears for a connection that was up and then dropped, so a guest
+reboot no longer kills the client.
+
+Closing the viewer window ends the session and hands the user back to the
+connect window. Closing the connect window quits — with no session on screen
+it is the app's last exit door.
+
+**⌘Q under a modal dialog.** AppKit disables the main menu for the duration
+of a modal session, so the Quit menu item alone would strand the user behind
+the password prompt or the disconnect alert. A local `NSEventMaskKeyDown`
+monitor sees ⌘Q before it reaches the responder chain, in the modal run loop
+as well as the normal one, and terminates.
+
+The two alerts set their icon explicitly (caution, and a lock for the password
+prompt). `NSAlert` otherwise badges the *application* icon, and a bare
+un-bundled binary has none, so the default would be a generic folder.
+
 ### Mouse
 
 Absolute (client) mode only, via `spice_inputs_channel_position()`. View points
@@ -201,8 +266,9 @@ rather than half-implemented — see the gap list in the ticket report.
 
 | file | role |
 | --- | --- |
-| `main.m` | `NSApplication`, window, menu, and the `VsmView` responder methods |
+| `main.m` | `NSApplication`, session state machine, window, menu, and the `VsmView` responder methods |
 | `main-view.h` | the `VsmView` interface, shared with the debug helpers |
+| `vsm-connect.m/.h` | connect window, password prompt, disconnect alert |
 | `vsm-spice.c/.h` | GLib thread, session and channel wiring, damage blit, input marshalling |
 | `vsm-keymap.c/.h` | generated osx → xtkbd scancode table |
 | `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test and the synthetic cursor self-test |

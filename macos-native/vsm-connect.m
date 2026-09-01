@@ -115,6 +115,9 @@ NSString *vsm_prompt_password(NSString *uri)
     NSSecureTextField *field;
     NSString *password;
 
+    /* Explicit for the same reason as in the disconnect alert: an un-bundled
+     * binary has no application icon to badge. */
+    alert.icon = [NSImage imageNamed:NSImageNameLockLockedTemplate];
     alert.messageText = @"Authentication required";
     alert.informativeText = [NSString stringWithFormat:@"Password for %@", uri];
     [alert addButtonWithTitle:@"Connect"];
