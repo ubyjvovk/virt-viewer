@@ -194,6 +194,23 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   fullscreen, connect/auth/error dialogs, URL/.vv handlers, relative
   mouse, and client-ready clipboard.
 
+- 2026-09-01 — T-0030 clipboard NONE-fix ACCEPTED (1 attempt, $2.53,
+  7m; +84/-18) — PM A/B had found the client dropping unfulfillable
+  guest requests; fix verified live incl. the forced offer→request→
+  cleared race and un-wedged follow-up. **Final clipboard verdict
+  (user-verified live):** guest→host WORKS end-to-end (user pasted
+  guest marker on the Mac). Host→guest is client-complete (delivery +
+  agent install confirmed); text stops at Hyprland's focus-gated
+  X11→Wayland sync — vdagent installs into the Xwayland CLIPBOARD, but
+  Hyprland mirrors X11→Wayland only while an XWayland window is
+  focused (reverse direction is unconditional, hence the asymmetry).
+  Guest-side options recorded: xwayland-focus workaround, clipnotify/
+  xclip→wl-copy bridge, future wayland-native vdagent. The earlier
+  vdagent crash never reproduced once launched with DISPLAY=:0.
+  Viewer-side feature is DONE. Worker also flagged: osascript
+  activation leaks mouse pos/keys into the guest (ties into the P3
+  focus-stealing item).
+
 ## Board snapshot
 - 2026-09-01 — **21/21 done, drained.** Waves: GTK port T-0001..T-0010; PR
   assembly T-0011; stress reviews T-0012..14; fix wave T-0015..19;
