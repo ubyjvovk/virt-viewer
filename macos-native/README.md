@@ -5,10 +5,11 @@ for the protocol, AppKit/Core Animation for the window, and a keycodemapdb
 scancode table for the keyboard.
 
 Scope so far: **screen, keyboard, absolute and relative mouse, guest cursor
-shape**, plus a connect window, a password prompt and a reconnect/close dialog
-so the viewer can be launched and recovered without a terminal. There is
-deliberately no clipboard, no file transfer, no USB redirection, no audio, and
-no multi-display support.
+shape and two-way plain-text clipboard**, plus a connect window, a password
+prompt and a reconnect/close dialog so the viewer can be launched and recovered
+without a terminal. There is deliberately no file transfer, no USB
+redirection, no audio, and no multi-display support; the clipboard is UTF-8
+text only.
 
 ## Build
 
@@ -115,7 +116,7 @@ shortcuts and the Accessibility grant".
 
 | variable | effect |
 | --- | --- |
-| `VSM_TRACE=1` | log every scancode, damage rect, motion, button and scroll event, and every cursor define/hide/reset |
+| `VSM_TRACE=1` | log every scancode, damage rect, motion, button and scroll event, every cursor define/hide/reset, and every clipboard transition (direction and byte/character counts only — never contents) |
 | `VSM_DUMP_DIR=<dir>` | `SIGUSR1` writes the current guest framebuffer to `<dir>/frame-N.png` |
 | `VSM_SELFTEST=1` | two seconds after the first frame, replay a fixed benign input script (arrows, Escape, each modifier, absolute motion, left/right click, scroll) through the real responder methods |
 | `VSM_CURSOR_SELFTEST=1` | two seconds after the first frame, drive a synthetic cursor script (two shapes with different hotspots, then hide, then reset) through the real cursor code path |
@@ -564,6 +565,56 @@ in a single turn of the run loop mostly evaporates. Real hardware paces itself;
 a script has to, and `drive_motion()` in `vsm-debug.m` sends one event every
 25 ms.
 
+### Clipboard
+
+Plain **UTF-8 text**, both directions, on the `CLIPBOARD` selection only.
+Images, rich text, file lists and the X11 `PRIMARY` selection are deliberately
+out: macOS has no `PRIMARY`, and anything that is not text is dropped rather
+than mistranslated. `vsm-spice.c` owns the SPICE half, `vsm-clipboard.m` the
+AppKit half; the five `clipboard_*` entries in `VsmSpiceCallbacks` cross from
+the GLib thread to the main thread, and the four `vsm_spice_clipboard_*`
+functions cross back.
+
+**It needs `spice-vdagent` running in the guest.** Without an agent the server
+has nowhere to forward the messages, so the whole feature turns itself off:
+one `guest agent absent: clipboard disabled` line at connect and no pasteboard
+poll at all. "Present" means two things, and they become true a beat apart —
+the `agent-connected` property AND the `CLIPBOARD_BY_DEMAND` capability. Both
+are required before the first grab: calling
+`spice_main_channel_clipboard_selection_grab()` on a connected agent whose
+capability set has not landed yet trips a `g_return_if_fail` inside
+spice-client-glib (`GSpice-CRITICAL agent_clipboard_grab`). A guest that never
+brings an agent up says nothing at all, so a one-shot 1.5 s probe after the
+main channel opens reports the state either way.
+
+**Host → guest is polled**, because AppKit posts no notification for a
+pasteboard this process does not own. `NSPasteboard.general.changeCount` is
+read once a second — but only while all three of "a session exists", "an agent
+is connected" and "the application is active" hold, so a viewer sitting in the
+background does not wake the CPU once a second. A change with text on it
+*offers* the text to the guest (`clipboard_selection_grab`); the bytes are read
+and sent only when the guest asks for them, which is usually within a hundred
+milliseconds because a guest clipboard manager pulls them straight away. The
+first poll of a new session deliberately treats whatever is already on the
+pasteboard as fresh, so text copied *before* connecting is offered too.
+
+**Guest → host is event-driven.** The guest's grab is answered with a request
+for `VD_AGENT_CLIPBOARD_UTF8_TEXT`, and the text that comes back is written to
+`NSPasteboard.general` (`clearContents` + `setString:forType:`). The agent's
+payload is not NUL-terminated on the wire, so `vsm-spice.c` copies it into a
+NUL-terminated block on the GLib thread and hands ownership to the main thread.
+
+The two halves would chase each other's tails if they were left alone: writing
+the pasteboard bumps `changeCount`, which the poller would read as a fresh host
+copy and offer straight back to the guest. Two guards break the loop — text
+identical to what is already on the pasteboard is never written at all, and a
+write that does happen records the `changeCount` it produced as already seen.
+spice-gtk's `spice-gtk-session.c` carries the same guard for the same reason.
+
+Clipboard **contents are never logged**. `VSM_TRACE=1` records the direction,
+the type and a byte or character count, and nothing else; a marker string put
+on the pasteboard does not appear anywhere in the trace.
+
 ## URLs and .vv files
 
 The bundle declares two LaunchServices entry points in `Info.plist`, and both
@@ -628,6 +679,7 @@ left on disk, because the user still needs it.
 | --- | --- |
 | `main.m` | `NSApplication`, session state machine, window, menu, and the `VsmView` responder methods |
 | `main-view.h` | the `VsmView` interface, shared with the debug helpers |
+| `vsm-clipboard.m/.h` | the AppKit half of the text clipboard: pasteboard poll, echo guards |
 | `vsm-connect.m/.h` | connect window, password prompt, disconnect alert |
 | `vsm-tap.m/.h` | the `CGEventTap` that captures the system-reserved chords |
 | `vsm-spice.c/.h` | GLib thread, session and channel wiring, damage blit, input marshalling |
