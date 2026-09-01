@@ -183,6 +183,12 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     NSUInteger devBit = 0, genericBit = 0;
     BOOL down;
 
+    /* Cmd is the one modifier the toggle owns: with capture off the app keeps
+     * its shortcuts, and letting the bare Cmd press through anyway would
+     * still trip whatever the guest's window manager binds on SUPER. */
+    if (!self.captureKeyboard && (kc == VSM_KC_LCMD || kc == VSM_KC_RCMD))
+        return;
+
     switch (kc) {
     case VSM_KC_LSHIFT: devBit = VSM_DEV_LSHIFT; genericBit = NSEventModifierFlagShift;   break;
     case VSM_KC_RSHIFT: devBit = VSM_DEV_RSHIFT; genericBit = NSEventModifierFlagShift;   break;
@@ -585,15 +591,28 @@ enum {
                                            self.view.guestHeight / scale)];
 }
 
+/* Log what the window currently occupies.  The second rect is in the
+ * top-left-origin space screencapture(1) takes for -R, so a QA run can grab
+ * exactly this window (and nothing else on the desktop) from the log. */
+- (void)logWindowGeometry:(NSString *)what
+{
+    NSRect frame = self.window.frame;
+    NSRect content = [self.window contentRectForFrameRect:frame];
+    CGFloat screenHeight = NSScreen.screens.firstObject.frame.size.height;
+
+    NSLog(@"%@: content %.0fx%.0f pt, guest %dx%d, backing scale %.1f, "
+          @"fullscreen %@, screencapture -R %.0f,%.0f,%.0f,%.0f",
+          what, content.size.width, content.size.height,
+          self.view.guestWidth, self.view.guestHeight,
+          self.window.backingScaleFactor, [self isFullScreen] ? @"yes" : @"no",
+          frame.origin.x, screenHeight - NSMaxY(frame),
+          frame.size.width, frame.size.height);
+}
+
 - (void)actualSize:(id)sender
 {
     [self resizeToGuestPixels];
-    NSRect content = [self.window contentRectForFrameRect:self.window.frame];
-    NSLog(@"actual size: content %.0fx%.0f pt for a %dx%d guest "
-          @"(backing scale %.1f)",
-          content.size.width, content.size.height,
-          self.view.guestWidth, self.view.guestHeight,
-          self.window.backingScaleFactor);
+    [self logWindowGeometry:@"actual size"];
 }
 
 /* AppKit disables the main menu for the duration of a modal session, so the
@@ -794,11 +813,7 @@ enum {
         }
         path = [dir stringByAppendingPathComponent:
                           [NSString stringWithFormat:@"frame-%d.png", ++seq]];
-        NSRect content = [self.window contentRectForFrameRect:self.window.frame];
-        NSLog(@"window: title=\"%@\" content=%.0fx%.0f pt, backing scale %.1f, "
-              @"layer contentsScale %.1f",
-              self.window.title, content.size.width, content.size.height,
-              self.window.backingScaleFactor, self.view.layer.contentsScale);
+        [self logWindowGeometry:@"window"];
         vsm_dump_surface(self.spice, path);
     });
     dispatch_resume(src);
@@ -830,11 +845,19 @@ enum {
     self.window.resizeIncrements = NSMakeSize(1, 1);
 }
 
+- (void)windowDidEnterFullScreen:(NSNotification *)note
+{
+    if (note.object != self.window)
+        return;
+    [self logWindowGeometry:@"entered fullscreen"];
+}
+
 - (void)windowDidExitFullScreen:(NSNotification *)note
 {
     if (note.object != self.window)
         return;
     [self applyGuestAspectRatio];
+    [self logWindowGeometry:@"left fullscreen"];
 }
 
 /* A guest changes video mode by destroying and recreating its primary
