@@ -211,6 +211,15 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   activation leaks mouse pos/keys into the guest (ties into the P3
   focus-stealing item).
 
+- 2026-09-01 — **ALPHA RELEASE (user-approved push):** annotated tag
+  `spice-viewer-0.1.0-alpha.1` + branch `macos-native` pushed to origin
+  (github.com/ubyjvovk/virt-viewer). Artifacts staged locally in
+  macos-native/build/: SPICE-Viewer-0.1.0-alpha.1-macos.zip (8.1 MB,
+  ditto-zipped, deep-signature verified) + RELEASE-NOTES-0.1.0-alpha.1.md.
+  GitHub Release object NOT created (gh CLI absent) — user finishes at
+  /releases/new?tag=... or installs gh. The gitlab upstream remote
+  remains untouched (MR still separately gated).
+
 ## Board snapshot
 - 2026-09-01 — **21/21 done, drained.** Waves: GTK port T-0001..T-0010; PR
   assembly T-0011; stress reviews T-0012..14; fix wave T-0015..19;
