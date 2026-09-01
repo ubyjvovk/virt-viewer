@@ -276,6 +276,16 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
 - 2026-09-01 — User allows unlocking the guest and clicking around;
   lock-screen pw staged in root .env as GUEST_UNLOCK_PW (value not
   recorded here). Tickets T-0025/28/29 reference it.
+- 2026-09-01 — T-0023 cursor channel ACCEPTED (1 attempt, $8.01, +444/-8).
+  Key finding: the Omarchy/Hyprland guest never sends cursor shapes — it
+  composites the pointer into the framebuffer and emits one cursor-hide at
+  init (correct handling: local pointer suppressed over the view, exactly
+  one visible cursor). Real cursor-define path proven synthetically
+  (VSM_CURSOR_SELFTEST) + leak-checked (5000 churns, 0 added bytes).
+  P3 follow-ups: (a) verify premul-vs-nonpremul RGBA against a
+  shape-sending guest (X11/QXL or Windows) — NSBitmapImageRep declared
+  premultiplied, GdkPixbuf convention is non-premul; (b) MallocStackLogging
+  segfaults spice-gtk coroutine stacks (tool incompat, use plain leaks).
 
 ## Next actions
 - Board is drained; nothing is running. On restart: `tigerteam status`,
