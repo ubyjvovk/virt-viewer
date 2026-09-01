@@ -21,6 +21,7 @@
 #include "vsm-keymap.h"
 #include "vsm-spice.h"
 #include "vsm-tap.h"
+#include "vsm-vv.h"
 
 /* Device-dependent modifier bits (IOKit's IOLLEvent.h), used to tell left
  * from right on flagsChanged: the public NSEventModifierFlag* masks collapse
@@ -483,6 +484,13 @@ typedef enum {
 /* Last value -captureActive returned, so the edges get logged once each. */
 @property (nonatomic, assign) BOOL captureWasActive;
 @property (nonatomic, strong) dispatch_source_t dumpSource;
+/* NO until -applicationDidFinishLaunching: has run.  LaunchServices delivers
+ * the URL or file that started the app BEFORE that point, so those handlers
+ * record what they were asked for and let the launch finish the job. */
+@property (nonatomic, assign) BOOL didFinishLaunching;
+/* An open request that arrived before launch and could not be honoured; shown
+ * as an alert once there is an app to show it in. */
+@property (nonatomic, copy)   NSString *pendingOpenError;
 @property (nonatomic, assign) BOOL selftestDone;
 @property (nonatomic, assign) BOOL cursorSelftestDone;
 @property (nonatomic, assign) BOOL sendkeySelftestDone;
@@ -1068,8 +1076,19 @@ enum {
     [self installTapPrompting:YES];
     [self updateKeyboardOwnership];
 
-    /* A URI on argv means "connect to this now", exactly as before the
-     * connect window existed; without one the user is asked. */
+    self.didFinishLaunching = YES;
+    /* A URL or .vv file that started the app was handled before this point;
+     * an unopenable one left its message here. */
+    if (self.pendingOpenError) {
+        NSString *message = self.pendingOpenError;
+
+        self.pendingOpenError = nil;
+        [self showOpenAlert:@"Cannot open this connection" informative:message];
+    }
+
+    /* A URI on argv -- or one an open handler just recorded -- means "connect
+     * to this now", exactly as before the connect window existed; without one
+     * the user is asked. */
     if (self.uri)
         [self connect];
     else
@@ -1106,6 +1125,106 @@ enum {
     self.uri = uri;
     [self.connectWindow hide];
     [self connect];
+}
+
+/* --------------------------------------------------- open URLs and files
+ *
+ * Both LaunchServices entry points -- a spice:// URL and a double-clicked
+ * .vv file -- end here, and both can fire before -applicationDidFinishLaunching:
+ * (that is how Finder starts the app in the first place).  So neither handler
+ * connects directly: they record what was asked for and either act now, if
+ * the app is already up, or let the launch do it.
+ */
+
+/* One-button "no" for an open request that cannot be honoured right now. */
+- (void)showOpenAlert:(NSString *)message informative:(NSString *)informative
+{
+    NSAlert *alert = [[NSAlert alloc] init];
+
+    alert.alertStyle = NSAlertStyleWarning;
+    alert.messageText = message;
+    if (informative)
+        alert.informativeText = informative;
+    [alert addButtonWithTitle:@"OK"];
+    [NSApp activateIgnoringOtherApps:YES];
+    [alert runModal];
+}
+
+/* Report @message now if the app is running, or at the end of launch if the
+ * request arrived before there was a UI to put an alert in front of. */
+- (void)reportOpenFailure:(NSString *)message
+{
+    if (!self.didFinishLaunching) {
+        self.pendingOpenError = message;
+        return;
+    }
+    [self showOpenAlert:@"Cannot open this connection" informative:message];
+}
+
+/* Connect to @uri, optionally with @password.  A session already on screen
+ * wins: this viewer shows one display, and silently dropping the running one
+ * because a stale .vv was double-clicked would be the wrong trade. */
+- (void)openConnectionURI:(NSString *)uri password:(NSString *)password
+{
+    if (self.spice) {
+        [self showOpenAlert:@"Already connected"
+                informative:@"Disconnect the current session before opening "
+                            @"another connection."];
+        return;
+    }
+
+    self.uri = uri;
+    self.password = password;
+    [NSUserDefaults.standardUserDefaults setObject:uri forKey:VsmLastURIKey];
+
+    /* Before launch there is no window and no menu yet; the connect happens
+     * at the end of -applicationDidFinishLaunching:, which reads self.uri. */
+    if (!self.didFinishLaunching)
+        return;
+    [self.connectWindow hide];
+    [self connect];
+}
+
+/* Read a .vv connection file and connect to what it describes. */
+- (void)openVvFile:(NSString *)path
+{
+    g_autoptr(GError) error = NULL;
+    VsmVvFile *vv;
+
+    vv = vsm_vv_parse(path.fileSystemRepresentation, &error);
+    if (!vv) {
+        [self reportOpenFailure:@(error->message)];
+        return;
+    }
+
+    /* Only once the file has been accepted: a file the user still needs
+     * because we refused to open it must not disappear. */
+    if (vv->delete_file)
+        vsm_vv_delete(path.fileSystemRepresentation);
+
+    [self openConnectionURI:@(vv->uri)
+                   password:vv->password ? @(vv->password) : nil];
+    vsm_vv_free(vv);
+}
+
+/* spice:// (and spice+tls://) URLs, both at launch and while running.  macOS
+ * can hand over several at once; this viewer has one display, so the first is
+ * opened and the rest are refused exactly as a second URL would be. */
+- (void)application:(NSApplication *)app openURLs:(NSArray<NSURL *> *)urls
+{
+    (void)app;
+    for (NSURL *url in urls)
+        [self openConnectionURI:url.absoluteString password:nil];
+}
+
+/* Double-clicked documents.  YES either way: the failure has already been
+ * reported in our own words, and returning NO only adds a second, vaguer
+ * Finder alert on top of it. */
+- (BOOL)application:(NSApplication *)app openFile:(NSString *)filename
+{
+    (void)app;
+    [self openVvFile:filename];
+    return YES;
 }
 
 /* Build the session for self.uri and put the viewer window on screen. */
@@ -1504,9 +1623,20 @@ static void cb_disconnected(void *user, const char *reason, int auth_failed)
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
-        if (argc > 2) {
-            fprintf(stderr, "usage: %s [spice://HOST:PORT]\n", argv[0]);
-            return 2;
+        const char *uri = NULL;
+        int i;
+
+        /* LaunchServices can still append a -psn_0_... process serial number
+         * to an app bundle it starts; it is not a URI and must not turn a
+         * Finder launch into a usage error. */
+        for (i = 1; i < argc; i++) {
+            if (g_str_has_prefix(argv[i], "-psn_"))
+                continue;
+            if (uri) {
+                fprintf(stderr, "usage: %s [spice://HOST:PORT]\n", argv[0]);
+                return 2;
+            }
+            uri = argv[i];
         }
         vsm_trace = getenv("VSM_TRACE") && *getenv("VSM_TRACE") == '1';
 
@@ -1514,9 +1644,10 @@ int main(int argc, const char *argv[])
         NSApp.activationPolicy = NSApplicationActivationPolicyRegular;
 
         g_delegate = [[VsmAppDelegate alloc] init];
-        /* No URI: applicationDidFinishLaunching opens the connect window. */
-        if (argc == 2)
-            g_delegate.uri = @(argv[1]);
+        /* No URI: applicationDidFinishLaunching opens the connect window --
+         * unless a spice:// URL or a .vv file arrives before it runs. */
+        if (uri)
+            g_delegate.uri = @(uri);
         NSApp.delegate = g_delegate;
 
         [NSApp run];
