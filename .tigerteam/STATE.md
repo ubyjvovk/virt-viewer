@@ -299,6 +299,17 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   in ALL states; T-0025 must gate it on capture state (capture ON +
   connected + view key → pass through to guest) while keeping the
   modal-state always-quit behavior. Reject if unaddressed.**
+- 2026-09-01 — T-0025 chrome ACCEPTED (1 attempt, $7.31, +406/-15; merged
+  build + 5/5 green). Worker resolved the quit-monitor watch item exactly
+  as required (monitor yields only when capture ON + session + key
+  window). Live: ⌘Return opened a Hyprland terminal, ⌘Q reached guest
+  with viewer alive, fullscreen letterbox math verified by coordinates.
+  Disclosed slip: one `pkill -x spice-viewer` (exact-name, not -f; no
+  harm; later kills by PID). P3 pile additions: (a) focus stealing —
+  activateIgnoringOtherApps grabbed focus from the working user, some
+  host keystrokes leaked to the guest (pre-existing); (b) black-bar
+  clicks send button at last-known guest coords; (c) AppKit-injected
+  "Show Tab Bar" in View menu (allowsAutomaticWindowTabbing=NO would fix).
 - 2026-09-01 — ⌘Q policy (user decision, after survey of UTM/Parallels/
   VMware/Moonlight/Chrome): tap-⌘Q-while-captured → guest; HOLD ⌘Q ~1 s
   → host quit with overlay hint (Chrome idiom); uncaptured ⌘Q quits
