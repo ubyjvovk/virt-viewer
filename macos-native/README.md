@@ -53,9 +53,11 @@ Two launch modes:
   `NSUserDefaults` under `VsmLastURI` and then proceeds down the same path as
   the argv case. Only the URI is remembered — never a password.
 
-⌘Q quits from any state: every key still held is released on the guest, the
-session is disconnected and the GLib thread is joined before the process
-exits. It works while a modal dialog is up too — see below.
+⌘Q quits from any state *except* while keyboard capture is claiming it — see
+"Menus and keyboard capture" below. When it does quit, every key still held is
+released on the guest, the session is disconnected and the GLib thread is
+joined before the process exits. It works while a modal dialog is up too — see
+below.
 
 ### Environment variables
 
@@ -66,6 +68,7 @@ exits. It works while a modal dialog is up too — see below.
 | `VSM_SELFTEST=1` | two seconds after the first frame, replay a fixed benign input script (arrows, Escape, each modifier, absolute motion, left/right click, scroll) through the real responder methods |
 | `VSM_CURSOR_SELFTEST=1` | two seconds after the first frame, drive a synthetic cursor script (two shapes with different hotspots, then hide, then reset) through the real cursor code path |
 | `VSM_CURSOR_CHURN=N` | with `VSM_CURSOR_SELFTEST`, replace the cursor N times as fast as possible first, so `leaks(1)` can show there is no per-define leak |
+| `VSM_SENDKEY_SELFTEST=1` | three seconds after the first frame, send one harmless chord (Shift+F11) through the same path as the Send Key menu, so the ordered-press/reverse-release behaviour is provable without firing Ctrl+Alt+Del at a live guest |
 | `VSM_SELFTEST_QUIT=1` | with `VSM_SELFTEST`, terminate via the ⌘Q action four seconds later |
 | `SPICE_DEBUG=1 G_MESSAGES_DEBUG=all` | spice-client-glib's own protocol tracing |
 
@@ -146,6 +149,92 @@ press/release pair.
 
 Every held key is released when the window resigns key, when the application
 resigns active, and on quit — otherwise a guest is left with a stuck modifier.
+
+### Menus and keyboard capture
+
+The menu bar has three menus beyond the Apple one:
+
+| menu | item | shortcut | effect |
+| --- | --- | --- | --- |
+| *app* | Quit | ⌘Q | quit (but see capture, below) |
+| View | Actual Size | ⌘0 | resize the window to guest pixels ÷ `backingScaleFactor` — the size it is given on connect, one guest pixel per physical display pixel |
+| View | Enter/Exit Full Screen | ctrl+⌘F | native macOS fullscreen; AppKit renames the item itself |
+| Input | Capture Keyboard | — | toggle, **on by default**, checkmarked while on |
+| Input | Send Key ▸ | — | Ctrl+Alt+Del, Ctrl+Alt+Backspace, PrintScreen, F11 |
+
+Actual Size and every Send Key item are disabled while no session is
+connected; Actual Size is also disabled in fullscreen, where the window size
+belongs to the screen. AppKit adds its own "Show Tab Bar"/"Show All Tabs"
+items to any menu titled *View*; they are inert here.
+
+**Keyboard capture** decides who owns ⌘. It defaults to **on**, because the
+guests this viewer is built for (Omarchy/Hyprland and friends) bind their
+window manager on SUPER, and a client that keeps a handful of ⌘ chords for
+itself makes those guests unusable. While capture is on *and* a session is
+connected *and* the guest view is the key window's first responder,
+`-[VsmView performKeyEquivalent:]` consumes **every** ⌘ chord and forwards it
+to the guest as scancodes — ⌘Q, ⌘W, ⌘H, ⌘M and ⌘0 included. AppKit offers key
+equivalents to the key window's view hierarchy before the main menu, so the
+view wins; the ⌘ key itself has already reached the guest through
+`flagsChanged:`, and only the other key of the chord needs the press/release
+pair the view sends (a key equivalent never produces a matching `keyUp:`).
+
+The consequences, in order of how surprising they are:
+
+- **⌘Q does not quit while capture is on.** It types SUPER+Q into the guest.
+  The local ⌘Q event monitor that keeps Quit working behind modal dialogs
+  stands aside for exactly this case — and only this case, since capture never
+  claims the chord while a dialog is up (a dialog means no live session).
+- The app's own shortcuts (⌘0, ctrl+⌘F) work only while capture is **off** or
+  no session is connected.
+- **The menu bar is always reachable with the mouse**, in every state, and
+  that is how you turn capture off.
+- With capture off, the bare ⌘ press is not forwarded either, so using a Mac
+  shortcut cannot trip whatever the guest binds on SUPER. Every other
+  modifier (control, option, shift) always reaches the guest.
+- System-owned chords — ⌘-Space, ⌘-Tab, the screenshot keys — are taken by
+  macOS before any application sees them and are *not* caught here.
+
+**Send Key** exists for the chords that never arrive: ones macOS owns, and
+ones (Ctrl+Alt+Del) that a Mac keyboard cannot express. Each item carries its
+chord as a list of XT scancodes and goes through one shared
+`-[VsmView sendChord:]`, which presses every code in order and releases them
+in reverse order — what a human pressing the same combination produces.
+PrintScreen is sent as the single extended code `0xe037`; the fake-shift
+prefix a PS/2 controller adds is deliberately not synthesised, because guests
+read `0xe037` as SysRq on its own and the extra `0xe02a` would look like a
+real shift press.
+
+### Fullscreen and window sizing
+
+The window is `NSWindowCollectionBehaviorFullScreenPrimary`, so fullscreen is
+the native macOS kind: its own Space, the green button, ctrl+⌘F, and the
+standard View menu item. Outside fullscreen the window's proportions are
+locked to the guest's (`contentAspectRatio`), so a drag cannot letterbox the
+image. That constraint has to be dropped for the transition — AppKit will not
+grow an aspect-locked window to fill a screen — so the window takes
+`resizeIncrements = (1, 1)` on the way in and the lock is restored on the way
+out.
+
+In fullscreen the guest image aspect-fits inside a screen-sized view with
+black bars: the view's layer is `kCAGravityResizeAspect` over an opaque black
+background, and the window's background colour matches. The same aspect-fit
+arithmetic backs `-guestPointFor:x:y:`, so a click in fullscreen lands where
+it points; a click inside a black bar maps to no guest pixel and sends no
+motion.
+
+If the display's aspect ratio happens to match the guest's, fullscreen fills
+it exactly and there are no bars. On a 2x panel whose point size exceeds the
+guest resolution the image is magnified with `kCAFilterNearest`, so guest
+pixels stay square and hard-edged rather than being smoothed.
+
+**Guest resolution changes** are handled: a guest changes video mode by
+destroying and recreating its primary surface, so `primary_create` arrives
+again mid-session with new dimensions. Everything derived from the old size is
+recomputed — the layer is rebound to the new IOSurface, the aspect lock is
+updated, and the window is resized to the new guest pixel count. In fullscreen
+the frame belongs to the screen, so only the letterboxing changes (the layer's
+gravity has already done it) and the aspect lock is reapplied on the way out.
 
 
 ### Cursor
@@ -271,5 +360,5 @@ rather than half-implemented — see the gap list in the ticket report.
 | `vsm-connect.m/.h` | connect window, password prompt, disconnect alert |
 | `vsm-spice.c/.h` | GLib thread, session and channel wiring, damage blit, input marshalling |
 | `vsm-keymap.c/.h` | generated osx → xtkbd scancode table |
-| `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test and the synthetic cursor self-test |
+| `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test, the synthetic cursor self-test and the send-key chord self-test |
 | `build.sh` | the build |
