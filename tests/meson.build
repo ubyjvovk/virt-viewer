@@ -54,3 +54,17 @@ if host_machine.system() == 'windows'
 
   test('test-redirect', redirect_bin)
 endif
+
+
+if host_machine.system() == 'darwin'
+  macos_window_state_bin = executable(
+    'test-macos-window-state',
+    sources: ['test-macos-window-state.c'],
+    dependencies: [glib_dep, gtk_dep],
+    include_directories: top_include_dir + src_include_dir,
+  )
+
+  # Drives a real window through the window server, so it is slower than the
+  # pure-logic tests; skips itself (exit 77) on a builder with no GUI session.
+  test('test-macos-window-state', macos_window_state_bin, timeout: 120)
+endif
