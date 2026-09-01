@@ -254,6 +254,17 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   LoC, worker-sized): cursor channel (best value/line), relative/server
   mouse mode, clipboard, multi-display (only structural refactor), dialogs.
 
+- 2026-09-01 — **Milestone 2 wave launched ("proper app", user request):**
+  T-0023 cursor channel → T-0024 connect/auth/error dialogs → T-0025
+  fullscreen/menus/⌘-forwarding → T-0026 .app bundle + URL/.vv handlers →
+  T-0027 relative mouse → T-0028 clipboard text. Fully serialized via
+  depends_on (all touch main.m/vsm-spice.c); all C2 (interfaces locked in
+  ticket text), capability [macbuild] → opus lane. Root checkout renamed
+  to branch `macos-native` (same tip as mac-port; accepts merge here).
+  Placeholders pending user decisions: bundle name "SPICE Viewer.app" and
+  bundle id (single variables in make-bundle.sh, T-0026). Deferred to
+  milestone 3: multi-display, TLS, audio, IOSurface double-buffering.
+
 ## Next actions
 - Board is drained; nothing is running. On restart: `tigerteam status`,
   `tigerteam up` when new tickets exist, arm ONE `tigerteam events --wait`
