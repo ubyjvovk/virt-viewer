@@ -9,6 +9,7 @@
 
 #include <dispatch/dispatch.h>
 #include <spice-client.h>
+#include <spice/vd_agent.h>
 #include <string.h>
 
 struct _VsmSpice {
@@ -34,6 +35,9 @@ struct _VsmSpice {
     GHashTable         *pressed;   /* scancode -> held, for release-all */
     gboolean            stopping;
     gboolean            forced_relative;  /* VSM_FORCE_RELATIVE asked once */
+    gboolean            agent_connected;  /* last state pushed to the host */
+    gboolean            agent_reported;   /* the state above has been said out loud */
+    guint               agent_probe_id;   /* one-shot "is there an agent?" timeout */
 
     /* Shared: surface handoff and damage coalescing. */
     GMutex              lock;
@@ -304,6 +308,200 @@ static void on_cursor_reset(SpiceCursorChannel *channel G_GNUC_UNUSED,
     dispatch_async(dispatch_get_main_queue(), ^{ reset(user); });
 }
 
+/* ------------------------------------------------------------- clipboard */
+
+/* Plain UTF-8 text on the CLIPBOARD selection, nothing else: no PRIMARY (the
+ * macOS pasteboard has no equivalent) and no images or file lists.  Every
+ * handler below runs on the GLib thread and only marshals to the main thread;
+ * the reverse direction is the vsm_spice_clipboard_* entry points at the
+ * bottom of the file.  Nothing here ever logs clipboard CONTENTS -- the trace
+ * carries the direction, the type and a byte count.
+ *
+ * The whole feature is inert without a guest agent: the server drops agent
+ * messages on the floor when spice-vdagent is not running, so the host side
+ * is told through the clipboard_agent callback and stops polling instead of
+ * shouting into a void. */
+static const guint VSM_CLIPBOARD_SELECTION = VD_AGENT_CLIPBOARD_SELECTION_CLIPBOARD;
+
+/* GLib thread only. */
+static void notify_agent(VsmSpice *self, gboolean connected)
+{
+    if (self->agent_reported && self->agent_connected == connected)
+        return;
+    self->agent_connected = connected;
+    self->agent_reported = TRUE;
+    notify_status(self, "guest agent %s: clipboard %s",
+                  connected ? "connected (clipboard capable)" : "absent",
+                  connected ? "enabled" : "disabled");
+    if (self->cb.clipboard_agent) {
+        void (*cb)(void *, int) = self->cb.clipboard_agent;
+        void *user = self->user;
+        int on = connected ? 1 : 0;
+        dispatch_async(dispatch_get_main_queue(), ^{ cb(user, on); });
+    }
+}
+
+/* "Is there an agent this client can exchange a clipboard with?"  Two things
+ * have to be true, and they become true at different moments: the agent has
+ * to be connected, and it has to have announced CLIPBOARD_BY_DEMAND -- the
+ * capability behind the whole grab/request/notify handshake.  Grabbing before
+ * the capability set arrives trips a g_return_if_fail inside spice-client-glib
+ * (GSpice-CRITICAL agent_clipboard_grab), so the host side is told the agent
+ * is there only once BOTH hold. */
+static gboolean agent_clipboard_ready(VsmSpice *self)
+{
+    gboolean connected = FALSE;
+
+    if (!self->main_channel)
+        return FALSE;
+    g_object_get(self->main_channel, "agent-connected", &connected, NULL);
+    return connected &&
+        spice_main_channel_agent_test_capability(self->main_channel,
+                                                 VD_AGENT_CAP_CLIPBOARD_BY_DEMAND);
+}
+
+/* Both "agent-connected" and "agent-caps-0" land here; either can be the one
+ * that completes the pair. */
+static void on_agent_notify(GObject *object G_GNUC_UNUSED,
+                            GParamSpec *pspec G_GNUC_UNUSED, gpointer data)
+{
+    VsmSpice *self = data;
+    gboolean ready = agent_clipboard_ready(self);
+
+    /* "agent-connected" goes true a beat before the capabilities arrive, so
+     * the first notify of a perfectly healthy agent reads as not-ready.
+     * Announcing an absent agent on that beat would put a retracted "no
+     * agent" line in every log; the absence is announced once, by the probe
+     * timeout, and only for a guest that really has none. */
+    if (!ready && !self->agent_reported)
+        return;
+    notify_agent(self, ready);
+}
+
+/* A guest WITH an agent announces it in the main channel's init message and
+ * the notify above fires; a guest without one says nothing at all, and
+ * silence is exactly the state the host side has to be told about so it can
+ * skip the pasteboard poll.  So the state is read out once, shortly after the
+ * main channel opens, and reported whatever it is.  The id is kept so a
+ * session torn down inside the window cancels it. */
+static gboolean probe_agent(gpointer data)
+{
+    VsmSpice *self = data;
+
+    self->agent_probe_id = 0;
+    if (self->main_channel)
+        notify_agent(self, agent_clipboard_ready(self));
+    return G_SOURCE_REMOVE;
+}
+
+/* How long to give the guest agent to announce itself before declaring it
+ * absent.  The announcement rides the main channel's init message, so this is
+ * a generous margin rather than a guess at a negotiation. */
+#define VSM_AGENT_PROBE_MS 1500
+
+/* The guest took its clipboard.  @types is the list of formats it offers;
+ * this client answers for UTF-8 text and ignores every other offer, which is
+ * also why TRUE (handled) is only returned when text is on the list. */
+static gboolean on_clipboard_grab(SpiceMainChannel *channel G_GNUC_UNUSED,
+                                  guint selection, guint32 *types, guint ntypes,
+                                  gpointer data)
+{
+    VsmSpice *self = data;
+    guint i;
+
+    if (selection != VSM_CLIPBOARD_SELECTION)
+        return FALSE;
+    for (i = 0; i < ntypes; i++)
+        if (types[i] == VD_AGENT_CLIPBOARD_UTF8_TEXT)
+            break;
+    if (i == ntypes) {
+        if (vsm_spice_trace())
+            g_message("clipboard: guest grab with no UTF8 type (%u offered)",
+                      ntypes);
+        return FALSE;
+    }
+
+    if (vsm_spice_trace())
+        g_message("clipboard: guest grab, UTF8 text offered");
+    if (self->cb.clipboard_grab) {
+        void (*cb)(void *) = self->cb.clipboard_grab;
+        void *user = self->user;
+        dispatch_async(dispatch_get_main_queue(), ^{ cb(user); });
+    }
+    return TRUE;
+}
+
+static void on_clipboard_release(SpiceMainChannel *channel G_GNUC_UNUSED,
+                                 guint selection, gpointer data)
+{
+    VsmSpice *self = data;
+
+    if (selection != VSM_CLIPBOARD_SELECTION)
+        return;
+    if (vsm_spice_trace())
+        g_message("clipboard: guest release");
+    if (self->cb.clipboard_release) {
+        void (*cb)(void *) = self->cb.clipboard_release;
+        void *user = self->user;
+        dispatch_async(dispatch_get_main_queue(), ^{ cb(user); });
+    }
+}
+
+/* The bytes this client asked for.  spice-client-glib owns @data only for the
+ * duration of the signal, and the agent does not promise a trailing NUL, so
+ * the copy handed to the main thread is made here and NUL-terminated. */
+static void on_clipboard_data(SpiceMainChannel *channel G_GNUC_UNUSED,
+                              guint selection, guint type,
+                              gpointer cdata, guint size, gpointer data)
+{
+    VsmSpice *self = data;
+    char *text;
+
+    if (selection != VSM_CLIPBOARD_SELECTION ||
+        type != VD_AGENT_CLIPBOARD_UTF8_TEXT)
+        return;
+    if (!self->cb.clipboard_data)
+        return;
+
+    text = g_malloc(size + 1);
+    if (size)
+        memcpy(text, cdata, size);
+    text[size] = '\0';
+    if (vsm_spice_trace())
+        g_message("clipboard: guest -> host, %u byte%s", size,
+                  size == 1 ? "" : "s");
+    {
+        void (*cb)(void *, char *) = self->cb.clipboard_data;
+        void *user = self->user;
+        dispatch_async(dispatch_get_main_queue(), ^{ cb(user, text); });
+    }
+}
+
+/* The guest asks for what this client offered.  Answering is the main
+ * thread's job (only it may touch NSPasteboard), so the request is forwarded
+ * and TRUE returned: the answer arrives asynchronously through
+ * vsm_spice_clipboard_send(). */
+static gboolean on_clipboard_request(SpiceMainChannel *channel G_GNUC_UNUSED,
+                                     guint selection, guint type, gpointer data)
+{
+    VsmSpice *self = data;
+
+    if (selection != VSM_CLIPBOARD_SELECTION ||
+        type != VD_AGENT_CLIPBOARD_UTF8_TEXT)
+        return FALSE;
+    if (!self->cb.clipboard_request)
+        return FALSE;
+
+    if (vsm_spice_trace())
+        g_message("clipboard: guest requested UTF8 text");
+    {
+        void (*cb)(void *) = self->cb.clipboard_request;
+        void *user = self->user;
+        dispatch_async(dispatch_get_main_queue(), ^{ cb(user); });
+    }
+    return TRUE;
+}
+
 /* --------------------------------------------------------------- session */
 
 static void update_title(VsmSpice *self)
@@ -390,6 +588,9 @@ static void on_channel_event(SpiceChannel *channel G_GNUC_UNUSED,
     switch (event) {
     case SPICE_CHANNEL_OPENED:
         notify_status(self, "main channel opened");
+        if (!self->agent_probe_id && !self->agent_reported)
+            self->agent_probe_id = g_timeout_add(VSM_AGENT_PROBE_MS,
+                                                 probe_agent, self);
         return;
     case SPICE_CHANNEL_CLOSED:
         reason = "connection closed by peer";
@@ -441,6 +642,18 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
                          G_CALLBACK(on_channel_event), self);
         g_signal_connect(channel, "notify::mouse-mode",
                          G_CALLBACK(on_mouse_mode), self);
+        g_signal_connect(channel, "notify::agent-connected",
+                         G_CALLBACK(on_agent_notify), self);
+        g_signal_connect(channel, "notify::agent-caps-0",
+                         G_CALLBACK(on_agent_notify), self);
+        g_signal_connect(channel, "main-clipboard-selection-grab",
+                         G_CALLBACK(on_clipboard_grab), self);
+        g_signal_connect(channel, "main-clipboard-selection-release",
+                         G_CALLBACK(on_clipboard_release), self);
+        g_signal_connect(channel, "main-clipboard-selection",
+                         G_CALLBACK(on_clipboard_data), self);
+        g_signal_connect(channel, "main-clipboard-selection-request",
+                         G_CALLBACK(on_clipboard_request), self);
         return;
     }
 
@@ -503,8 +716,12 @@ static void on_channel_destroy(SpiceSession *session G_GNUC_UNUSED,
         self->inputs = NULL;
     else if (SPICE_CHANNEL(self->cursor) == channel)
         self->cursor = NULL;
-    else if (SPICE_CHANNEL(self->main_channel) == channel)
+    else if (SPICE_CHANNEL(self->main_channel) == channel) {
         self->main_channel = NULL;
+        /* No main channel, no agent: tell the host side to stop polling
+         * rather than leave it offering a clipboard nobody can collect. */
+        notify_agent(self, FALSE);
+    }
 }
 
 static gpointer spice_thread(gpointer data)
@@ -716,6 +933,109 @@ void vsm_spice_send_scroll(VsmSpice *self, int steps, int button_state)
     invoke(self, do_scroll, input_op(self, steps, button_state, 0, 0));
 }
 
+/* Clipboard sends.  These carry a payload rather than four ints, so they get
+ * their own op struct; the destroy notify frees both halves whether or not
+ * the source function ever ran. */
+typedef struct {
+    VsmSpice *self;
+    guint8   *data;
+    gsize     size;
+} DataOp;
+
+static void data_op_free(gpointer p)
+{
+    DataOp *op = p;
+
+    g_free(op->data);
+    g_free(op);
+}
+
+static gboolean do_clipboard_grab(gpointer data)
+{
+    VsmSpice *self = ((InputOp *)data)->self;
+    guint32 types[] = { VD_AGENT_CLIPBOARD_UTF8_TEXT };
+
+    if (self->main_channel && self->agent_connected)
+        spice_main_channel_clipboard_selection_grab(self->main_channel,
+                                                    VSM_CLIPBOARD_SELECTION,
+                                                    types, G_N_ELEMENTS(types));
+    return G_SOURCE_REMOVE;
+}
+
+static gboolean do_clipboard_release(gpointer data)
+{
+    VsmSpice *self = ((InputOp *)data)->self;
+
+    if (self->main_channel && self->agent_connected)
+        spice_main_channel_clipboard_selection_release(self->main_channel,
+                                                       VSM_CLIPBOARD_SELECTION);
+    return G_SOURCE_REMOVE;
+}
+
+static gboolean do_clipboard_request(gpointer data)
+{
+    VsmSpice *self = ((InputOp *)data)->self;
+
+    if (self->main_channel && self->agent_connected)
+        spice_main_channel_clipboard_selection_request(self->main_channel,
+                                                       VSM_CLIPBOARD_SELECTION,
+                                                       VD_AGENT_CLIPBOARD_UTF8_TEXT);
+    return G_SOURCE_REMOVE;
+}
+
+static gboolean do_clipboard_send(gpointer data)
+{
+    DataOp *op = data;
+
+    if (op->self->main_channel && op->self->agent_connected) {
+        if (vsm_spice_trace())
+            g_message("clipboard: host -> guest, %zu byte%s", op->size,
+                      op->size == 1 ? "" : "s");
+        spice_main_channel_clipboard_selection_notify(op->self->main_channel,
+                                                      VSM_CLIPBOARD_SELECTION,
+                                                      VD_AGENT_CLIPBOARD_UTF8_TEXT,
+                                                      op->data, op->size);
+    }
+    return G_SOURCE_REMOVE;
+}
+
+void vsm_spice_clipboard_grab(VsmSpice *self)
+{
+    if (!self)
+        return;
+    invoke(self, do_clipboard_grab, input_op(self, 0, 0, 0, 0));
+}
+
+void vsm_spice_clipboard_release(VsmSpice *self)
+{
+    if (!self)
+        return;
+    invoke(self, do_clipboard_release, input_op(self, 0, 0, 0, 0));
+}
+
+void vsm_spice_clipboard_request(VsmSpice *self)
+{
+    if (!self)
+        return;
+    invoke(self, do_clipboard_request, input_op(self, 0, 0, 0, 0));
+}
+
+void vsm_spice_clipboard_send(VsmSpice *self, const char *utf8)
+{
+    DataOp *op;
+
+    if (!self || !utf8 || !*utf8)
+        return;
+    op = g_new0(DataOp, 1);
+    op->self = self;
+    /* The agent's UTF8_TEXT payload is not NUL-terminated on the wire, so the
+     * copy is exactly the text bytes. */
+    op->size = strlen(utf8);
+    op->data = (guint8 *)g_memdup2(utf8, op->size);
+    g_main_context_invoke_full(self->ctx, G_PRIORITY_DEFAULT, do_clipboard_send,
+                               op, data_op_free);
+}
+
 /* ------------------------------------------------------------- lifecycle */
 
 VsmSpice *vsm_spice_new(const char *uri, const VsmSpiceCallbacks *cb, void *user)
@@ -768,6 +1088,10 @@ static gboolean do_stop(gpointer data)
     VsmSpice *self = data;
 
     release_all_keys(self);
+    if (self->agent_probe_id) {
+        g_source_remove(self->agent_probe_id);
+        self->agent_probe_id = 0;
+    }
     if (self->session)
         spice_session_disconnect(self->session);
     g_main_loop_quit(self->loop);

@@ -16,6 +16,7 @@
 #import <QuartzCore/QuartzCore.h>
 
 #include "main-view.h"
+#include "vsm-clipboard.h"
 #include "vsm-connect.h"
 #include "vsm-debug.h"
 #include "vsm-keymap.h"
@@ -678,6 +679,9 @@ typedef enum {
  * reconnects.  Process memory only: never written to defaults or logged. */
 @property (nonatomic, copy)   NSString *password;
 @property (nonatomic, strong) VsmConnectWindowController *connectWindow;
+/* Host pasteboard <-> guest clipboard.  Outlives individual sessions; it is
+ * pointed at each new VsmSpice by -connect and cleared by -teardownSession. */
+@property (nonatomic, strong) VsmClipboard *clipboard;
 /* Set while a modal disconnect/auth dialog is up, so the extra disconnect
  * callbacks other channels queue do not stack a second alert on top. */
 @property (nonatomic, assign) BOOL handlingDisconnect;
@@ -726,6 +730,11 @@ static void cb_cursor_define(void *user, int width, int height,
 static void cb_cursor_hide(void *user);
 static void cb_cursor_reset(void *user);
 static void cb_mouse_mode(void *user, int relative);
+static void cb_clipboard_agent(void *user, int connected);
+static void cb_clipboard_grab(void *user);
+static void cb_clipboard_release(void *user);
+static void cb_clipboard_data(void *user, char *text);
+static void cb_clipboard_request(void *user);
 
 static const VsmSpiceCallbacks vsm_callbacks = {
     .primary_create = cb_primary_create,
@@ -737,6 +746,11 @@ static const VsmSpiceCallbacks vsm_callbacks = {
     .cursor_hide    = cb_cursor_hide,
     .cursor_reset   = cb_cursor_reset,
     .mouse_mode     = cb_mouse_mode,
+    .clipboard_agent   = cb_clipboard_agent,
+    .clipboard_grab    = cb_clipboard_grab,
+    .clipboard_release = cb_clipboard_release,
+    .clipboard_data    = cb_clipboard_data,
+    .clipboard_request = cb_clipboard_request,
 };
 
 /* XT (AT set 1) scancodes for the Send Key chords.  0x1xx is the 0xe0-
@@ -1525,6 +1539,9 @@ enum {
     if (self.password)
         vsm_spice_set_password(self.spice, self.password.UTF8String);
     self.view.spice = self.spice;
+    if (!self.clipboard)
+        self.clipboard = [[VsmClipboard alloc] init];
+    self.clipboard.spice = self.spice;
 
     [self.window makeKeyAndOrderFront:nil];
     [self.window makeFirstResponder:self.view];
@@ -1565,6 +1582,7 @@ enum {
     [self.view releaseAllKeys];
     self.spice = NULL;
     self.view.spice = NULL;
+    [self.clipboard stop];
     [self cancelQuitHold];
     [self noteCaptureSuspendedBy:@"session disconnected"];
     vsm_spice_stop(spice);
@@ -1795,6 +1813,9 @@ enum {
 - (void)applicationDidResignActive:(NSNotification *)note
 {
     (void)note;
+    /* The pasteboard poll follows activation: a viewer in the background has
+     * no reason to watch a clipboard the user is using somewhere else. */
+    [self.clipboard setApplicationActive:NO];
     [self.view ungrabPointer:@"application deactivated"];
     [self.view releaseAllKeys];
     [self cancelQuitHold];
@@ -1804,6 +1825,7 @@ enum {
 - (void)applicationDidBecomeActive:(NSNotification *)note
 {
     (void)note;
+    [self.clipboard setApplicationActive:YES];
     [self noteCaptureState:@"app activated"];
 }
 
@@ -1931,6 +1953,38 @@ static void cb_mouse_mode(void *user, int relative)
 {
     VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
     [self.view setRelativeMouseMode:relative ? YES : NO];
+}
+
+/* Clipboard glue.  vsm-spice.c has already marshalled all five onto the main
+ * thread, so they are straight forwards to the VsmClipboard object. */
+static void cb_clipboard_agent(void *user, int connected)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    [self.clipboard setAgentConnected:connected ? YES : NO];
+}
+
+static void cb_clipboard_grab(void *user)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    [self.clipboard guestGrabbed];
+}
+
+static void cb_clipboard_release(void *user)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    [self.clipboard guestReleased];
+}
+
+static void cb_clipboard_data(void *user, char *text)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    [self.clipboard guestSentText:text];   /* takes the g_malloc block */
+}
+
+static void cb_clipboard_request(void *user)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    [self.clipboard guestRequestedText];
 }
 
 static void cb_status(void *user, const char *status)

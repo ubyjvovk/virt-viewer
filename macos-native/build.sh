@@ -18,7 +18,7 @@ mkdir -p "$BUILD_DIR"
 # shellcheck disable=SC2086  # pkg-config output must word-split
 clang -g -O2 -Wall -Wextra -Werror -fobjc-arc \
       -o "$BIN" \
-      main.m vsm-connect.m vsm-debug.m vsm-tap.m \
+      main.m vsm-clipboard.m vsm-connect.m vsm-debug.m vsm-tap.m \
       vsm-spice.c vsm-keymap.c vsm-vv.c \
       $CFLAGS_PKG $LIBS_PKG \
       -framework Cocoa -framework QuartzCore -framework IOSurface -framework ImageIO -framework CoreServices
