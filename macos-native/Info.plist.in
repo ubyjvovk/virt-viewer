@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Info.plist template for the native SPICE viewer bundle.
+
+  macos-native/make-bundle.sh substitutes:
+    @APP_NAME@    the display name (APP_NAME in make-bundle.sh)
+    @BUNDLE_ID@   the bundle identifier (BUNDLE_ID in make-bundle.sh)
+    @VERSION@     the version string (APP_VERSION in make-bundle.sh)
+    @MINOS@       the highest LC_BUILD_VERSION minos of any bundled Mach-O
+
+  The name and the identifier are BOTH placeholders pending a user decision;
+  they live in exactly one place each, at the top of make-bundle.sh.
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>@APP_NAME@</string>
+  <key>CFBundleName</key>
+  <string>@APP_NAME@</string>
+  <!-- The viewer binary itself: unlike the GTK bundle there are no dlopen()ed
+       module caches to locate, so there is no launcher script. -->
+  <key>CFBundleExecutable</key>
+  <string>spice-viewer</string>
+  <key>CFBundleIconFile</key>
+  <string>spice-viewer.icns</string>
+  <key>CFBundleIdentifier</key>
+  <string>@BUNDLE_ID@</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@VERSION@</string>
+  <key>CFBundleSignature</key>
+  <string>????</string>
+  <key>CFBundleVersion</key>
+  <string>@VERSION@</string>
+  <!-- Substituted with the highest deployment target among the bundled
+       Mach-Os, not a hand-picked number: the Homebrew libraries the bundle
+       carries inherit their builder's SDK, and a lower value here only buys a
+       silent dyld abort instead of a LaunchServices refusal. -->
+  <key>LSMinimumSystemVersion</key>
+  <string>@MINOS@</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <!-- LaunchServices delivers these to -application:openURLs: in main.m.
+       `spice` is claimed with LSHandlerRank Owner (no other macOS application
+       handles it); `spice+tls` is declared alongside it so that a TLS URL
+       reaches the viewer rather than the browser's "no handler" dialog -- it
+       is passed to spice-client-glib unchanged. -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>SPICE connection</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>spice</string>
+        <string>spice+tls</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+  </array>
+  <!-- .vv connection files, delivered to -application:openFile:.  The UTI is
+       imported rather than exported: virt-viewer owns the format and its own
+       bundle exports the same identifier; two exporters would leave which
+       description LaunchServices shows up to install order. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Virt Viewer connection file</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>spice-viewer.icns</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>vv</string>
+      </array>
+      <key>CFBundleTypeMIMETypes</key>
+      <array>
+        <string>application/x-virt-viewer</string>
+      </array>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>org.virt-manager.virt-viewer.vv</string>
+      </array>
+    </dict>
+  </array>
+  <key>UTImportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>org.virt-manager.virt-viewer.vv</string>
+      <key>UTTypeDescription</key>
+      <string>Virt Viewer connection file</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.data</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>vv</string>
+        </array>
+        <key>public.mime-type</key>
+        <array>
+          <string>application/x-virt-viewer</string>
+        </array>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
