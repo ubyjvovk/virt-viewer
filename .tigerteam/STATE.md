@@ -216,6 +216,15 @@ platform-guarded so Linux/Windows are untouched.
   upstream MR (mac-port-pr, c33a0c6) remains built and awaiting the user's
   push decisions — the pivot does not withdraw it.
 
+- 2026-09-01 — T-0022 test target is the user's disposable Omarchy VM at
+  spice://100.101.77.113:5900 (user: "no problem if you bump it a little");
+  currently at a lock screen + screensaver (= live damage stream, good).
+  Guest unlock password staged in root `.env` as `T0022_GUEST_UNLOCK_PW`
+  (value NOT recorded here per secrets rule; `/.env` re-excluded via
+  .git/info/exclude since the branch convergence dropped it from
+  .gitignore). Unlock-typing = strongest keyboard evidence; offer it to the
+  worker at next rework/answer if attempt 2's evidence is thin.
+
 ## Next actions
 - Waiting on the user (all local until then; NOTHING pushed):
   1. Commit-trailer decision: strip Claude-Session and add the user's own
