@@ -225,6 +225,22 @@ platform-guarded so Linux/Windows are untouched.
   .gitignore). Unlock-typing = strongest keyboard evidence; offer it to the
   worker at next rework/answer if attempt 2's evidence is thin.
 
+- 2026-09-01 — **T-0022 ACCEPTED: native milestone 1 works.** 1655 LoC in
+  macos-native/ (spice-glib on a GLib thread + IOSurface/CALayer view +
+  keycodemapdb osx2xtkbd + flagsChanged synthesis), built by
+  `bash macos-native/build.sh` → `macos-native/build/spice-viewer` (130 KB).
+  Verified three ways: worker evidence (damage rects, Retina 1:1, guest
+  DPMS-wake + cursor echo), PM live launch (window on display 2 rendering
+  the live Omarchy desktop, waybar clock in sync), and THE USER typed the
+  unlock password through real hardware events — "it works pretty well".
+  Attempt 2 cost $6.09 / 17m42s. Worker finding worth upstreaming to
+  spice-gtk eventually: its coroutine scheduling uses g_idle_add /
+  g_timeout_add_full (global default context), so a private per-thread
+  GMainContext silently stalls the session — the PoC runs the default
+  context on the GLib thread instead. Gap list to daily-driveable (~2500
+  LoC, worker-sized): cursor channel (best value/line), relative/server
+  mouse mode, clipboard, multi-display (only structural refactor), dialogs.
+
 ## Next actions
 - Waiting on the user (all local until then; NOTHING pushed):
   1. Commit-trailer decision: strip Claude-Session and add the user's own
