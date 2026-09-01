@@ -554,7 +554,7 @@ are behavioural, not cosmetic, and none of them is fixed yet.
   it also frequently reappears on the other display. This is the most likely
   source of the "title disappears after I move the window between monitors"
   report - GTK still holds the correct title, it is simply drawn off-screen.
-* **Preferences opened while in full screen cannot be closed** (10/10 across
+* **Preferences opened while in full screen cannot be closed** (9/10 across
   both the green-button and the F11 full-screen paths). The dialog is created
   from `virt-viewer-preferences.ui`, which sets `type-hint` to `normal`
   (`src/resources/ui/virt-viewer-preferences.ui:9`); GDK-quartz turns that into
@@ -562,10 +562,14 @@ are behavioural, not cosmetic, and none of them is fixed yet.
   (`collectionBehavior` `0x8c0`) instead of the `FullScreenAuxiliary` (`0x100`)
   that the connection-error `GtkMessageDialog` gets. macOS therefore refuses to
   show it over the viewer's full-screen Space and leaves it on the desktop
-  Space, where the user cannot reach it. Only leaving full screen and clicking
-  the dialog's close button recovers; force-quitting is otherwise required.
+  Space, where the user cannot reach it. In those runs no route tried recovered
+  it - the dialog outlived Cmd-W, Escape, a click at its close button and
+  leaving full screen - so the application had to be killed. The one run that
+  escaped is the exception that confirms the mechanism: there the dialog did
+  land on the active Space, became the key window, and Escape closed it
+  normally.
 * **⌘W and Escape never close the Preferences dialog, even windowed** (5/5).
-  The dialog is presented with `gtk_window_present()` but never becomes the key
-  `NSWindow` (`isKeyWindow` is 0 until it is clicked), so those keystrokes go to
-  the viewer window instead. Clicking its close button does work. The
+  The dialog is presented with `gtk_window_present()` but did not become the key
+  `NSWindow` in any of the five windowed runs (`isKeyWindow` is 0 until it is
+  clicked), so those keystrokes go to the viewer window instead. Clicking its close button does work. The
   connection-error dialog is affected the same way.
