@@ -331,7 +331,7 @@ static void notify_agent(VsmSpice *self, gboolean connected)
     self->agent_connected = connected;
     self->agent_reported = TRUE;
     notify_status(self, "guest agent %s: clipboard %s",
-                  connected ? "connected" : "disconnected",
+                  connected ? "connected (clipboard capable)" : "absent",
                   connected ? "enabled" : "disabled");
     if (self->cb.clipboard_agent) {
         void (*cb)(void *, int) = self->cb.clipboard_agent;
@@ -341,14 +341,41 @@ static void notify_agent(VsmSpice *self, gboolean connected)
     }
 }
 
-static void on_agent_connected(GObject *object, GParamSpec *pspec G_GNUC_UNUSED,
-                               gpointer data)
+/* "Is there an agent this client can exchange a clipboard with?"  Two things
+ * have to be true, and they become true at different moments: the agent has
+ * to be connected, and it has to have announced CLIPBOARD_BY_DEMAND -- the
+ * capability behind the whole grab/request/notify handshake.  Grabbing before
+ * the capability set arrives trips a g_return_if_fail inside spice-client-glib
+ * (GSpice-CRITICAL agent_clipboard_grab), so the host side is told the agent
+ * is there only once BOTH hold. */
+static gboolean agent_clipboard_ready(VsmSpice *self)
 {
-    VsmSpice *self = data;
     gboolean connected = FALSE;
 
-    g_object_get(object, "agent-connected", &connected, NULL);
-    notify_agent(self, connected);
+    if (!self->main_channel)
+        return FALSE;
+    g_object_get(self->main_channel, "agent-connected", &connected, NULL);
+    return connected &&
+        spice_main_channel_agent_test_capability(self->main_channel,
+                                                 VD_AGENT_CAP_CLIPBOARD_BY_DEMAND);
+}
+
+/* Both "agent-connected" and "agent-caps-0" land here; either can be the one
+ * that completes the pair. */
+static void on_agent_notify(GObject *object G_GNUC_UNUSED,
+                            GParamSpec *pspec G_GNUC_UNUSED, gpointer data)
+{
+    VsmSpice *self = data;
+    gboolean ready = agent_clipboard_ready(self);
+
+    /* "agent-connected" goes true a beat before the capabilities arrive, so
+     * the first notify of a perfectly healthy agent reads as not-ready.
+     * Announcing an absent agent on that beat would put a retracted "no
+     * agent" line in every log; the absence is announced once, by the probe
+     * timeout, and only for a guest that really has none. */
+    if (!ready && !self->agent_reported)
+        return;
+    notify_agent(self, ready);
 }
 
 /* A guest WITH an agent announces it in the main channel's init message and
@@ -360,13 +387,10 @@ static void on_agent_connected(GObject *object, GParamSpec *pspec G_GNUC_UNUSED,
 static gboolean probe_agent(gpointer data)
 {
     VsmSpice *self = data;
-    gboolean connected = FALSE;
 
     self->agent_probe_id = 0;
-    if (self->main_channel) {
-        g_object_get(self->main_channel, "agent-connected", &connected, NULL);
-        notify_agent(self, connected);
-    }
+    if (self->main_channel)
+        notify_agent(self, agent_clipboard_ready(self));
     return G_SOURCE_REMOVE;
 }
 
@@ -619,7 +643,9 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
         g_signal_connect(channel, "notify::mouse-mode",
                          G_CALLBACK(on_mouse_mode), self);
         g_signal_connect(channel, "notify::agent-connected",
-                         G_CALLBACK(on_agent_connected), self);
+                         G_CALLBACK(on_agent_notify), self);
+        g_signal_connect(channel, "notify::agent-caps-0",
+                         G_CALLBACK(on_agent_notify), self);
         g_signal_connect(channel, "main-clipboard-selection-grab",
                          G_CALLBACK(on_clipboard_grab), self);
         g_signal_connect(channel, "main-clipboard-selection-release",

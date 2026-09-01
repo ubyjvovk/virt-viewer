@@ -42,7 +42,7 @@ static BOOL vsm_clipboard_trace(void)
 {
     self = [super init];
     if (self) {
-        _seenChangeCount = NSPasteboard.generalPasteboard.changeCount;
+        _seenChangeCount = -1;
         _appActive = NSApp.isActive;
     }
     return self;
@@ -91,7 +91,11 @@ static BOOL vsm_clipboard_trace(void)
      * the old one: reset rather than carry state across. */
     _agentConnected = NO;
     _offeredToGuest = NO;
-    _seenChangeCount = NSPasteboard.generalPasteboard.changeCount;
+    /* -1 is never a real changeCount, so the first poll of the new session
+     * treats whatever is already on the pasteboard as fresh and offers it.
+     * Without that, text copied BEFORE the viewer connected would stay
+     * invisible to the guest until the user copied something a second time. */
+    _seenChangeCount = -1;
     [self updatePolling];
 }
 
