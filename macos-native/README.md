@@ -19,6 +19,48 @@ bash macos-native/build.sh
 That is the whole build. It does not touch the project's meson build and
 produces `macos-native/build/spice-viewer`.
 
+### The .app bundle
+
+```
+bash macos-native/make-bundle.sh
+```
+
+builds `macos-native/build/SPICE Viewer.app` — a double-clickable, relocatable
+bundle that carries every non-system dylib it needs, so it runs on a machine
+with no Homebrew. It calls `build.sh` for you (`SKIP_BUILD=1` bundles the
+binary that is already there), then:
+
+- copies the dependency closure with `dylibbundler` into
+  `Contents/Resources/lib`, rewriting every install name to
+  `@executable_path/../Resources/lib/` and deduplicating the `LC_RPATH` that
+  dylibbundler can add twice;
+- refuses to finish if any bundled Mach-O still names a path outside the
+  bundle (`otool -L` sweep);
+- ad-hoc **codesigns every dylib after the last `install_name_tool` rewrite**,
+  then the bundle. Getting that order wrong is not a link error: dyld kills
+  the process on launch and macOS reports "the application quit unexpectedly".
+
+`CFBundleExecutable` is the viewer binary itself. Unlike the GTK bundle there
+is no launcher script and no module caches to relocate, because nothing here
+is `dlopen()`ed.
+
+**The name and the identifier are placeholders.** `APP_NAME` (`SPICE Viewer`),
+`BUNDLE_ID` (`io.github.virt-viewer.spice-viewer`) and `APP_VERSION` are three
+variables at the top of `make-bundle.sh`, pending a decision on what this
+viewer is called. Changing `BUNDLE_ID` makes macOS treat the result as a
+different application — LaunchServices registrations, the Accessibility grant
+and `NSUserDefaults` are all keyed on it — so change it before shipping, not
+after.
+
+`LSMinimumSystemVersion` is not hand-picked: the script takes the highest
+`LC_BUILD_VERSION` `minos` of any Mach-O in the bundle. The Homebrew libraries
+inherit their builder's SDK, and claiming to run on an older macOS than they do
+only buys a silent dyld abort instead of a LaunchServices refusal.
+
+The bundle is signed ad hoc, not with a Developer ID, and it is not notarized:
+Gatekeeper will still quarantine it if it arrives from a browser. Building it
+locally, as above, is fine.
+
 ### Dependencies
 
 All from Homebrew, all already required by the main macOS port:
@@ -52,6 +94,10 @@ Two launch modes:
   Connect button (Return activates it). Connecting remembers the URI in
   `NSUserDefaults` under `VsmLastURI` and then proceeds down the same path as
   the argv case. Only the URI is remembered — never a password.
+
+From the `.app` bundle there is a third way in: a `spice://` URL or a
+double-clicked `.vv` file, both of which join the same path — see "URLs and
+.vv files".
 
 ⌘Q quits from any state *except* while keyboard capture is claiming it, where
 a **tap** of ⌘Q goes to the guest and **holding it for a second** quits — see
@@ -445,6 +491,64 @@ accumulated into whole notches.
 If the guest asks for server (relative) mouse mode, that is logged and ignored
 rather than half-implemented — see the gap list in the ticket report.
 
+## URLs and .vv files
+
+The bundle declares two LaunchServices entry points in `Info.plist`, and both
+land on the same code in `main.m`:
+
+- **`spice://` and `spice+tls://` URLs** — `-application:openURLs:`. `spice` is
+  claimed with `LSHandlerRank` `Owner` (nothing else on macOS handles it);
+  `spice+tls` is declared alongside it and passed to spice-client-glib
+  unchanged, which understands that scheme. Any other scheme is refused with an
+  alert rather than handed to the session, where it would come back as a
+  misleading "connection failed".
+- **`.vv` connection files** — double-clicked in Finder, or opened with
+  `open -a "SPICE Viewer.app" file.vv`.
+
+Both work whether the app is already running or is being started by the open
+itself. If a session is **already connected**, an open request is refused with
+a one-button *"Already connected — disconnect the current session first"* alert
+and the running session is left alone: this viewer shows one display, and
+dropping a live session because a stale `.vv` was double-clicked would be the
+wrong trade.
+
+Two macOS delivery quirks are handled in `main.m` and are easy to reintroduce:
+
+- Since macOS 10.13, a delegate that implements `-application:openURLs:` also
+  receives **file** opens there, as `file://` URLs;
+  `-application:openFile:` is not called. A `file://` URL fed to the session
+  produces "connection failed" on a perfectly good `.vv` file.
+- A **bundled** app receives its command-line argument through
+  `-application:openFile:`, not on `argv`. A `spice://` argument therefore
+  arrives on the document path and has to be classified before use.
+
+Open requests can also arrive *before* `-applicationDidFinishLaunching:` — that
+is how Finder starts the app in the first place — so the handlers record what
+they were asked for and let the launch finish the job. Nothing flashes the
+connect window on the way to a connection.
+
+### What a .vv file may contain
+
+Parsed with `GKeyFile` (`vsm-vv.c`), group `[virt-viewer]`:
+
+| key | effect |
+| --- | --- |
+| `type` | must be `spice`; anything else is an alert ("This connection file is for … displays") |
+| `host` | required |
+| `port` | required, 1–65535; a bare IPv6 literal is bracketed when the URI is built |
+| `password` | optional, used for the session and never written to defaults or logged |
+| `delete-this-file` | `1` deletes the file once it has been accepted |
+
+**Every other key and group is logged once with `g_message()` and ignored**, so
+a file from a real oVirt deployment — which carries a couple of dozen keys this
+viewer knows nothing about — still connects. That includes `tls-port` and `ca`:
+TLS is not wired up yet, and a `.vv` that only offers a TLS port fails the
+host/port check with an alert rather than connecting in the clear.
+
+`delete-this-file=1` is honoured only when the connection is accepted. A file
+the viewer refused to open (wrong `type`, or a session already on screen) is
+left on disk, because the user still needs it.
+
 ## Layout
 
 | file | role |
@@ -456,4 +560,7 @@ rather than half-implemented — see the gap list in the ticket report.
 | `vsm-spice.c/.h` | GLib thread, session and channel wiring, damage blit, input marshalling |
 | `vsm-keymap.c/.h` | generated osx → xtkbd scancode table |
 | `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test, the synthetic cursor self-test and the send-key chord self-test |
+| `vsm-vv.c/.h` | `.vv` connection-file parser |
 | `build.sh` | the build |
+| `make-bundle.sh` | the `.app` bundler (naming placeholders live at the top) |
+| `Info.plist.in` | bundle metadata template: URL schemes, `.vv` document type |
