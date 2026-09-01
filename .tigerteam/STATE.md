@@ -170,6 +170,30 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   is not rendered — invisible on framebuffer-compositing guests (this
   one), but a cursor-plane guest would show NO pointer while grabbed.
 
+- 2026-09-01 — T-0028 clipboard ACCEPTED (2 attempts incl. one
+  INCOMPLETE relay, $5.39 reported; +779/-7; merged build + 5/5 green).
+  Client side complete + hygiene-verified (contents never logged, echo
+  guards, activation-gated 1 s poll, capability-gate after a real
+  spice-glib assertion trip). **Full flow blocked IN THE GUEST**: Omarchy's
+  vdagent is protocol-capable but clipboard-blind (Wayland desktop,
+  X11-backend vdagent, likely no DISPLAY) — host→guest data crosses the
+  wire but never lands in wl-paste; guest wl-copy never produces a grab.
+  Guest-side fix + 1-minute re-verify closes it (receive path is
+  code-reviewed but unexecuted against a real grab). Worker disclosures:
+  a scrambled synthetic command may have left a TUI open on guest
+  workspace 1; synthetic-input quirks documented (osascript can't do
+  flagsChanged; keystroke digits arrive as keypad codes) — a "type ASCII
+  into guest" helper is a good future ticket.
+- 2026-09-01 — **MILESTONE 2 COMPLETE: board drained 28/28.** Wave
+  T-0023..T-0029 (7 tickets, all opus, all first-attempt except T-0028's
+  relay): cursor channel, dialogs, chrome+capture, event-tap full
+  capture, .app bundle, relative mouse, clipboard. ~$51 engine-reported
+  for the wave; $64.21 today total. The native viewer is now a
+  double-clickable relocatable .app with full keyboard capture
+  (⌘Space/⌘Tab via event tap + Accessibility), hold-⌘Q-to-quit, native
+  fullscreen, connect/auth/error dialogs, URL/.vv handlers, relative
+  mouse, and client-ready clipboard.
+
 ## Board snapshot
 - 2026-09-01 — **21/21 done, drained.** Waves: GTK port T-0001..T-0010; PR
   assembly T-0011; stress reviews T-0012..14; fix wave T-0015..19;
@@ -362,7 +386,17 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   acceptable for T-0025 (hold-to-quit arrives with T-0029).
 
 ## Next actions
-- Board is drained; nothing is running. On restart: `tigerteam status`,
+- **Pending user decisions (milestone 2):** (a) APP_NAME / BUNDLE_ID /
+  APP_VERSION in make-bundle.sh (BUNDLE_ID load-bearing: TCC,
+  LaunchServices, defaults); (b) grant Accessibility to the .app for
+  full capture; (c) guest-side vdagent fix (DISPLAY/Wayland backend) to
+  finish clipboard, then 1-min re-verify.
+- **Milestone 3 candidates (unticketed):** multi-display (~L, structural),
+  TLS/spice+tls, audio, IOSurface double-buffering, render server-mode
+  cursor-move (cursor-plane guests), pass keys through during menu
+  tracking, fix launch focus-stealing, inline dylibbundler, guest-typing
+  helper for QA, window-targeted screenshot helper in scripts/.
+- Board is drained; supervisor left running. On restart: `tigerteam status`,
   `tigerteam up` when new tickets exist, arm ONE `tigerteam events --wait`
   (pull mode). The retro lives at repo root `retro-tigerteam-mac-port.md`
   (untracked, user request — do not commit).
