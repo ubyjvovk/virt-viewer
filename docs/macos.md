@@ -526,3 +526,50 @@ environmental. Nothing below is fixed yet.
 * **Gatekeeper rejects the bundle** (`spctl --assess --type execute` →
   `rejected`) because the signature is ad-hoc. Expected, not a defect: see
   [Signing](#signing) for the Developer ID re-sign that fixes it.
+
+### Window management
+
+Found by a second QA pass (T-0020) driving the packaged bundle against a live
+VNC session on a two-display machine, each scenario repeated five times. These
+are behavioural, not cosmetic, and none of them is fixed yet.
+
+* **The header bar stays hidden after leaving full screen through the green
+  button** (5/5). `virt_viewer_window_enter_fullscreen()` hides the header bar
+  and `virt_viewer_window_leave_fullscreen()` shows it again
+  (`src/virt-viewer-window.c:797` and `:782`), but nothing watches
+  `window-state-event`, so a full-screen exit initiated by macOS rather than by
+  the application never runs the second half. The window is left with no title
+  bar at all: no title, no traffic lights, and no way to move or close it with
+  the mouse. Recipe: F11 (or View ▸ Full screen), then click the green button.
+* **F11 while in native full screen hides the header bar instead of leaving
+  full screen** (5/5). Same desynchronisation seen from the other side: the
+  `fullscreen` action's state is still `false` because the window entered full
+  screen through Cocoa, so F11 toggles it to `true` and calls
+  `virt_viewer_window_enter_fullscreen()` on an already-full-screen window. A
+  second F11 is needed to get out.
+* **Leaving full screen does not restore the previous window size or
+  position** (20/20). The window keeps its full-screen dimensions, and its
+  origin ends up above the top of the screen (y ≈ -23), which hides the
+  client-side header bar behind the macOS menu bar; with two displays attached
+  it also frequently reappears on the other display. This is the most likely
+  source of the "title disappears after I move the window between monitors"
+  report - GTK still holds the correct title, it is simply drawn off-screen.
+* **Preferences opened while in full screen cannot be closed** (9/10 across
+  both the green-button and the F11 full-screen paths). The dialog is created
+  from `virt-viewer-preferences.ui`, which sets `type-hint` to `normal`
+  (`src/resources/ui/virt-viewer-preferences.ui:9`); GDK-quartz turns that into
+  an `NSWindow` with `NSWindowCollectionBehaviorFullScreenPrimary`
+  (`collectionBehavior` `0x8c0`) instead of the `FullScreenAuxiliary` (`0x100`)
+  that the connection-error `GtkMessageDialog` gets. macOS therefore refuses to
+  show it over the viewer's full-screen Space and leaves it on the desktop
+  Space, where the user cannot reach it. In those runs no route tried recovered
+  it - the dialog outlived Cmd-W, Escape, a click at its close button and
+  leaving full screen - so the application had to be killed. The one run that
+  escaped is the exception that confirms the mechanism: there the dialog did
+  land on the active Space, became the key window, and Escape closed it
+  normally.
+* **⌘W and Escape never close the Preferences dialog, even windowed** (5/5).
+  The dialog is presented with `gtk_window_present()` but did not become the key
+  `NSWindow` in any of the five windowed runs (`isKeyWindow` is 0 until it is
+  clicked), so those keystrokes go to the viewer window instead. Clicking its close button does work. The
+  connection-error dialog is affected the same way.
