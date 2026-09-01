@@ -1193,7 +1193,10 @@ enum {
 
     vv = vsm_vv_parse(path.fileSystemRepresentation, &error);
     if (!vv) {
-        [self reportOpenFailure:@(error->message)];
+        /* The path is part of the message: a .vv that fails to load usually
+         * fails because it is not the file the user thought it was. */
+        [self reportOpenFailure:[NSString stringWithFormat:@"%@\n\n%s",
+                                          path, error->message]];
         return;
     }
 
@@ -1246,16 +1249,24 @@ enum {
     }
 }
 
-/* The pre-10.13 document-open path.  AppKit will not call it while
- * -application:openURLs: exists, but an app that is asked to open a document
- * by some other means (an Apple event from a script, say) still lands here,
- * and both routes must behave the same.  YES either way: the failure has
- * already been reported in our own words, and returning NO only adds a
- * second, vaguer Finder alert on top of it. */
+/* The other document-open path.  AppKit does not use it for Finder opens
+ * while -application:openURLs: exists, but it is still how a *bundled* app
+ * receives a command-line argument: argv[1] arrives here as a "file to open",
+ * even when it is a spice:// URL.  So the argument is classified before it is
+ * used -- feeding a URL to the .vv parser is how a perfectly good command
+ * line turns into "No such file or directory".
+ *
+ * YES either way: the failure has already been reported in our own words, and
+ * returning NO only adds a second, vaguer Finder alert on top of it. */
 - (BOOL)application:(NSApplication *)app openFile:(NSString *)filename
 {
+    NSURL *url = [NSURL URLWithString:filename];
+
     (void)app;
-    [self openVvFile:filename];
+    if (url.scheme && !url.isFileURL)
+        [self openSpiceURL:url];
+    else
+        [self openVvFile:url.isFileURL ? url.path : filename];
     return YES;
 }
 
