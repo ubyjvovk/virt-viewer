@@ -31,4 +31,12 @@ void vsm_run_input_selftest(VsmView *view, NSWindow *window);
  * all, and the AppKit half still has to be provable on such a target. */
 void vsm_run_cursor_selftest(VsmView *view);
 
+/* Sends one deliberately harmless chord -- Shift+F11 -- through the same
+ * -[VsmView sendChord:] path the Send Key menu uses.  Enabled with
+ * VSM_SENDKEY_SELFTEST=1.  It exists because the real menu entries include
+ * chords (Ctrl+Alt+Del) that must never be fired at a live guest, so the
+ * ordered-press / reverse-release behaviour has to be provable some other
+ * way; with VSM_TRACE=1 the scancode order is in the log. */
+void vsm_run_sendkey_selftest(VsmView *view);
+
 #endif /* VSM_DEBUG_H */
