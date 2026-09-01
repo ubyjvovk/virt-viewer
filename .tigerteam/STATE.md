@@ -299,6 +299,13 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   in ALL states; T-0025 must gate it on capture state (capture ON +
   connected + view key → pass through to guest) while keeping the
   modal-state always-quit behavior. Reject if unaddressed.**
+- 2026-09-01 — ⌘Q policy (user decision, after survey of UTM/Parallels/
+  VMware/Moonlight/Chrome): tap-⌘Q-while-captured → guest; HOLD ⌘Q ~1 s
+  → host quit with overlay hint (Chrome idiom); uncaptured ⌘Q quits
+  immediately. Hardware keys (brightness/volume/media/Fn) stay host-side
+  everywhere — consensus, different event class. Encoded in T-0029; if
+  T-0025 lands with plain tap-⌘Q-forwarded + menu-quit only, that is
+  acceptable for T-0025 (hold-to-quit arrives with T-0029).
 
 ## Next actions
 - Board is drained; nothing is running. On restart: `tigerteam status`,
