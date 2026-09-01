@@ -264,6 +264,18 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   Placeholders pending user decisions: bundle name "SPICE Viewer.app" and
   bundle id (single variables in make-bundle.sh, T-0026). Deferred to
   milestone 3: multi-display, TLS, audio, IOSurface double-buffering.
+- 2026-09-01 — **⌘-forwarding is capture-by-default (user request: Omarchy
+  is SUPER-heavy).** T-0025 edited in todo/: "Capture Keyboard" default
+  ON, performKeyEquivalent eats every ⌘ chord incl. ⌘Q while connected +
+  view key; menus stay mouse-reachable. New T-0029 (after T-0025, before
+  the bundle): CGEventTap tier for ⌘-Space/⌘-Tab/system chords, ⌃⌥
+  escape chord, AXIsProcessTrusted degrade path — needs a user
+  Accessibility grant (Terminal has only Screen Recording); worker ships
+  the degraded path if the grant is absent and the user does the final
+  live check. Chain now 23→24→25→29→26→27→28.
+- 2026-09-01 — User allows unlocking the guest and clicking around;
+  lock-screen pw staged in root .env as GUEST_UNLOCK_PW (value not
+  recorded here). Tickets T-0025/28/29 reference it.
 
 ## Next actions
 - Board is drained; nothing is running. On restart: `tigerteam status`,
