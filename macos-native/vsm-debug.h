@@ -24,6 +24,17 @@ BOOL vsm_dump_surface(VsmSpice *spice, NSString *path);
  * Enabled with VSM_SELFTEST=1. */
 void vsm_run_input_selftest(VsmView *view, NSWindow *window);
 
+/* Replays the whole relative-mouse gesture through @view's real entry
+ * points: the click that takes the pointer grab, a run of hardware-delta
+ * mouse-moved events (including sub-pixel ones), a button and a scroll while
+ * grabbed, and the ctrl-opt chord that releases it.  Dumps the guest
+ * framebuffer before and after the motion run into @dumpDir when it is
+ * non-nil, which is the evidence that the guest pointer actually moved.
+ * Enabled with VSM_GRAB_SELFTEST=1, and only useful together with
+ * VSM_FORCE_RELATIVE=1 -- a guest running an agent is in absolute mode, where
+ * there is no grab to take. */
+void vsm_run_grab_selftest(VsmView *view, NSWindow *window, NSString *dumpDir);
+
 /* Replays a synthetic cursor-channel script -- two shapes with different
  * hotspots, then hide, then reset -- through @view's real cursor entry
  * points.  Enabled with VSM_CURSOR_SELFTEST=1.  It exists because a guest

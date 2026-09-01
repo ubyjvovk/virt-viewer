@@ -711,6 +711,7 @@ typedef enum {
 @property (nonatomic, assign) BOOL selftestDone;
 @property (nonatomic, assign) BOOL cursorSelftestDone;
 @property (nonatomic, assign) BOOL sendkeySelftestDone;
+@property (nonatomic, assign) BOOL grabSelftestDone;
 @end
 
 /* The callback bodies are the C glue at the bottom of the file; the table has
@@ -1742,6 +1743,19 @@ enum {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
                        dispatch_get_main_queue(), ^{
             vsm_run_sendkey_selftest(self.view);
+        });
+    }
+
+    if (!self.grabSelftestDone &&
+        NSProcessInfo.processInfo.environment[@"VSM_GRAB_SELFTEST"]) {
+        self.grabSelftestDone = YES;
+        /* Later than the others: the grab can only be taken once the server
+         * has answered the VSM_FORCE_RELATIVE mode request, and that answer
+         * comes back on the main channel after the first frame. */
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 4 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+            vsm_run_grab_selftest(self.view, self.window,
+                                  NSProcessInfo.processInfo.environment[@"VSM_DUMP_DIR"]);
         });
     }
 
