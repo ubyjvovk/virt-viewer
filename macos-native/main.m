@@ -20,6 +20,7 @@
 #include "vsm-debug.h"
 #include "vsm-keymap.h"
 #include "vsm-spice.h"
+#include "vsm-tap.h"
 
 /* Device-dependent modifier bits (IOKit's IOLLEvent.h), used to tell left
  * from right on flagsChanged: the public NSEventModifierFlag* masks collapse
@@ -43,6 +44,10 @@ enum {
     VSM_KC_LCMD   = 0x37, VSM_KC_RCMD   = 0x36,
     VSM_KC_CAPS   = 0x39,
 };
+
+/* How long ⌘Q has to be held before it quits the viewer instead of typing
+ * SUPER+Q into the guest (Chrome's hold-to-quit, same duration). */
+static const NSTimeInterval VSM_QUIT_HOLD_SECONDS = 1.0;
 
 static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
@@ -119,6 +124,8 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
 - (void)keyDown:(NSEvent *)event
 {
+    if (self.tapOwnsKeyboard)
+        return;                       /* the tap already forwarded this one */
     if (event.isARepeat) {
         /* Let the guest run its own repeat rate: re-press only. */
         [self sendKeyCode:event.keyCode down:YES];
@@ -129,6 +136,8 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
 - (void)keyUp:(NSEvent *)event
 {
+    if (self.tapOwnsKeyboard)
+        return;
     [self sendKeyCode:event.keyCode down:NO];
 }
 
@@ -143,9 +152,15 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
  * The Cmd key itself is not sent from here: it already reached the guest via
  * flagsChanged: when it went down, and its release will arrive the same way.
  * Only the non-modifier key of the chord needs a press/release pair, and it
- * needs both, because a key equivalent never produces a matching keyUp. */
+ * needs both, because a key equivalent never produces a matching keyUp.
+ *
+ * With the event tap installed this is dead code for captured chords -- the
+ * tap consumed them long before AppKit looked for a key equivalent -- and
+ * stands aside for anything the tap deliberately passed through. */
 - (BOOL)performKeyEquivalent:(NSEvent *)event
 {
+    if (self.tapOwnsKeyboard)
+        return NO;
     if (!self.captureKeyboard || !self.spice)
         return NO;
     if (!self.window.isKeyWindow || self.window.firstResponder != self)
@@ -177,6 +192,13 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
  * device-dependent bit for that specific key, falling back to the generic
  * mask when the driver does not set one. */
 - (void)flagsChanged:(NSEvent *)event
+{
+    if (self.tapOwnsKeyboard)
+        return;
+    [self handleFlagsChanged:event];
+}
+
+- (void)handleFlagsChanged:(NSEvent *)event
 {
     NSUInteger flags = event.modifierFlags;
     unsigned short kc = event.keyCode;
@@ -404,9 +426,33 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
 @end
 
+/* The hold-to-quit overlay's window.  It must never become key: the key it
+ * is announcing is still physically down, and every remaining event of that
+ * keystroke -- the release that cancels the hold, and the auto-suspend that
+ * a viewer window losing key triggers -- depends on the viewer window
+ * keeping focus while the panel is on screen. */
+@interface VsmHUDPanel : NSPanel
+@end
+
+@implementation VsmHUDPanel
+- (BOOL)canBecomeKeyWindow  { return NO; }
+- (BOOL)canBecomeMainWindow { return NO; }
+@end
+
 /* ------------------------------------------------------------- delegate */
 
-@interface VsmAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
+/* What ⌘Q means right now.  One enum, one decision point
+ * (-quitActionForKeyDown:), two callers: the event tap and the local key
+ * monitor.  They used to race for the chord; now they ask the same question
+ * and only one of them is in a position to act on the answer. */
+typedef enum {
+    VSM_QUIT_NONE,   /* not the quit chord, or the guest simply gets it */
+    VSM_QUIT_HOLD,   /* captured: goes to the guest, ~1 s hold quits */
+    VSM_QUIT_NOW,    /* not captured: quit immediately */
+} VsmQuitAction;
+
+@interface VsmAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate,
+                                      VsmEventTapDelegate>
 @property (nonatomic, strong) NSWindow *window;
 @property (nonatomic, strong) VsmView *view;
 @property (nonatomic, assign) VsmSpice *spice;
@@ -420,6 +466,22 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 @property (nonatomic, assign) BOOL handlingDisconnect;
 @property (nonatomic, strong) id quitMonitor;
 @property (nonatomic, strong) NSMenuItem *captureItem;
+/* The system-shortcut tier: nil until the first enable, and installed only
+ * with an Accessibility grant.  Everything else works without it. */
+@property (nonatomic, strong) VsmEventTap *tap;
+@property (nonatomic, strong) NSMenuItem *tapItem;
+/* macOS shows its Accessibility dialog at most once per run of the viewer:
+ * a prompt on every toggle would be a prompt loop. */
+@property (nonatomic, assign) BOOL promptedForAccessibility;
+/* ⌃⌥ went down together with nothing else held -- if both come back up
+ * before any other key is pressed, that is the escape chord. */
+@property (nonatomic, assign) BOOL escapeArmed;
+/* Running while ⌘Q is held; firing quits, letting go cancels. */
+@property (nonatomic, strong) NSTimer *quitHoldTimer;
+@property (nonatomic, assign) unsigned short quitHoldKeyCode;
+@property (nonatomic, strong) NSPanel *quitHUD;
+/* Last value -captureActive returned, so the edges get logged once each. */
+@property (nonatomic, assign) BOOL captureWasActive;
 @property (nonatomic, strong) dispatch_source_t dumpSource;
 @property (nonatomic, assign) BOOL selftestDone;
 @property (nonatomic, assign) BOOL cursorSelftestDone;
@@ -515,6 +577,13 @@ enum {
                                             action:@selector(toggleCaptureKeyboard:)
                                      keyEquivalent:@""];
     self.captureItem.target = self;
+    /* The second capture tier.  Its title carries the Accessibility state
+     * because that is the only thing the user can do anything about, and
+     * clicking it is how a grant given after launch is picked up. */
+    self.tapItem = [inputMenu addItemWithTitle:@"Capture System Shortcuts"
+                                        action:@selector(captureSystemShortcuts:)
+                                 keyEquivalent:@""];
+    self.tapItem.target = self;
     [inputMenu addItem:[NSMenuItem separatorItem]];
 
     /* Chords the guest needs and AppKit or macOS would otherwise eat, each
@@ -547,6 +616,19 @@ enum {
                                                : NSControlStateValueOff;
         return YES;
     }
+    if (action == @selector(captureSystemShortcuts:)) {
+        BOOL trusted = [VsmEventTap isProcessTrusted:NO] &&
+                       !NSProcessInfo.processInfo.environment[@"VSM_NO_EVENT_TAP"];
+
+        /* Checked only when the tap is actually consuming for us: capture on,
+         * tap installed.  Re-checking trust here (menu open, not a timer) is
+         * how a grant made while the viewer runs is noticed without polling. */
+        item.state = (self.tap.active && self.view.captureKeyboard)
+                         ? NSControlStateValueOn : NSControlStateValueOff;
+        item.title = trusted ? @"Capture System Shortcuts"
+                             : @"Capture System Shortcuts (needs Accessibility)";
+        return YES;
+    }
     if (action == @selector(sendKeyChord:))
         return self.spice != NULL;
     if (action == @selector(actualSize:))
@@ -563,12 +645,344 @@ enum {
 
 - (void)toggleCaptureKeyboard:(id)sender
 {
-    self.view.captureKeyboard = !self.view.captureKeyboard;
+    (void)sender;
+    [self setCapture:!self.view.captureKeyboard reason:@"menu"];
+}
+
+/* Clicking the system-shortcut item is both "I want this tier" and "look at
+ * the Accessibility grant again": with a grant it installs the tap, without
+ * one it shows the system dialog (once) and leaves everything else alone. */
+- (void)captureSystemShortcuts:(id)sender
+{
+    (void)sender;
+    if (self.tap.active) {
+        [self.tap uninstall];
+        [self updateKeyboardOwnership];
+        NSLog(@"system shortcut capture off (event tap removed)");
+        return;
+    }
+    if (![self installTapPrompting:YES])
+        return;
+    if (!self.view.captureKeyboard)
+        [self setCapture:YES reason:@"system shortcut capture"];
+}
+
+/* ------------------------------------------------------- keyboard capture
+ *
+ * Two tiers.  Tier one is T-0025's: the responder methods forward whatever
+ * AppKit hands the view.  Tier two is the CGEventTap, which additionally
+ * gets the chords macOS keeps for itself -- Cmd-Space, Cmd-Tab, Cmd-` -- and
+ * needs an Accessibility grant.  Tier two supersedes tier one completely
+ * while it is installed (see -updateKeyboardOwnership), so no keystroke is
+ * ever sent twice; with no grant only tier one exists and the app behaves
+ * exactly as it did before.
+ */
+
+/* Is the guest receiving the keyboard right now?  Every reason capture can
+ * stop -- the menu toggle, the escape chord, the window losing key, the app
+ * deactivating, the session going away -- is expressed here and nowhere
+ * else, so the tap, the quit policy and the log cannot disagree. */
+- (BOOL)captureActive
+{
+    return self.view.captureKeyboard && self.spice != NULL &&
+           self.window != nil && self.window.isKeyWindow && NSApp.isActive;
+}
+
+/* Log capture edges once each.  The auto-suspend cases are invisible
+ * otherwise: nothing is sent, so a scancode trace shows only silence. */
+/* An auto-suspend trigger fired.  Logged whether or not the state actually
+ * moved: "did the tap stand down when the window lost focus?" is a question
+ * about the trigger, and the answer is worthless if the line only appears
+ * when capture happened to be active at the time. */
+- (void)noteCaptureSuspendedBy:(NSString *)reason
+{
+    self.captureWasActive = [self captureActive];
+    NSLog(@"capture auto-suspend: %@ (capture now %s)", reason,
+          self.captureWasActive ? "active" : "inactive");
+}
+
+- (void)noteCaptureState:(NSString *)reason
+{
+    BOOL active = [self captureActive];
+
+    if (active == self.captureWasActive)
+        return;
+    self.captureWasActive = active;
+    NSLog(@"capture %s (%@)", active ? "resumed" : "suspended", reason);
+}
+
+- (void)setCapture:(BOOL)on reason:(NSString *)reason
+{
+    self.view.captureKeyboard = on;
+    self.escapeArmed = NO;
+    [self cancelQuitHold];
     /* Turning capture off mid-chord would otherwise leave whatever modifier
      * is physically down stuck down in the guest. */
-    if (!self.view.captureKeyboard)
+    if (!on)
         [self.view releaseAllKeys];
-    NSLog(@"keyboard capture %s", self.view.captureKeyboard ? "on" : "off");
+    else
+        [self installTapPrompting:NO];
+    [self updateKeyboardOwnership];
+    NSLog(@"keyboard capture %s (%@)%s", on ? "on" : "off", reason,
+          on && !self.tap.active
+              ? " -- system shortcuts stay with macOS (no Accessibility grant)"
+              : "");
+    [self noteCaptureState:reason];
+}
+
+/* The single-source rule in one line: while a live tap is forwarding for a
+ * view whose capture is on, the responder methods send nothing. */
+- (void)updateKeyboardOwnership
+{
+    self.view.tapOwnsKeyboard = self.tap.active && self.view.captureKeyboard;
+}
+
+/* Install the tap if this process may have one.  Called on every enable, so
+ * a grant given while the viewer is running takes effect on the next toggle;
+ * @mayPrompt asks macOS for its one-time dialog, at most once per run. */
+- (BOOL)installTapPrompting:(BOOL)mayPrompt
+{
+    if (self.tap.active)
+        return YES;
+    /* The one path QA cannot reach any other way: TCC grants cannot be
+     * revoked from inside the process, so this is how the no-Accessibility
+     * behaviour gets tested on a machine that has the grant. */
+    if (NSProcessInfo.processInfo.environment[@"VSM_NO_EVENT_TAP"]) {
+        NSLog(@"VSM_NO_EVENT_TAP: pretending there is no Accessibility grant");
+        return NO;
+    }
+    if (!self.tap) {
+        self.tap = [[VsmEventTap alloc] init];
+        self.tap.delegate = self;
+    }
+    if (![VsmEventTap isProcessTrusted:NO]) {
+        if (mayPrompt && !self.promptedForAccessibility) {
+            self.promptedForAccessibility = YES;
+            (void)[VsmEventTap isProcessTrusted:YES];
+        }
+        NSLog(@"no Accessibility grant: Cmd-Space, Cmd-Tab and friends stay "
+              @"with macOS (Input > Capture System Shortcuts to re-check)");
+        return NO;
+    }
+    if (![self.tap install])
+        return NO;
+    [self updateKeyboardOwnership];
+    return YES;
+}
+
+/* ----------------------------------------------------- the tap's decisions */
+
+- (BOOL)eventTapShouldConsume:(NSEvent *)event
+{
+    if (![self captureActive]) {
+        [self noteCaptureState:@"not capturing"];
+        return NO;                    /* the rest of the system behaves */
+    }
+    [self noteCaptureState:@"key event"];
+
+    switch (event.type) {
+    case NSEventTypeFlagsChanged: return [self tapFlagsChanged:event];
+    case NSEventTypeKeyDown:      return [self tapKeyDown:event];
+    case NSEventTypeKeyUp:        return [self tapKeyUp:event];
+    default:                      return NO;
+    }
+}
+
+/* ⌃⌥ pressed together and released with nothing in between is the escape
+ * chord (the T-0027 mouse-ungrab convention): the one keystroke that is
+ * always handled locally.  It cannot be recognised until the release, so the
+ * presses have already reached the guest by then -- which is the other half
+ * of why firing it releases every key the guest holds. */
+- (BOOL)tapFlagsChanged:(NSEvent *)event
+{
+    NSEventModifierFlags flags = event.modifierFlags;
+    BOOL ctrl = (flags & NSEventModifierFlagControl) != 0;
+    BOOL opt  = (flags & NSEventModifierFlagOption) != 0;
+
+    if (ctrl && opt &&
+        !(flags & (NSEventModifierFlagCommand | NSEventModifierFlagShift)))
+        self.escapeArmed = YES;
+    else if (self.escapeArmed && (flags & (NSEventModifierFlagCommand |
+                                           NSEventModifierFlagShift)))
+        self.escapeArmed = NO;        /* a third modifier: a real chord */
+
+    if (self.escapeArmed && !ctrl && !opt) {
+        self.escapeArmed = NO;
+        [self setCapture:NO reason:@"ctrl-alt escape chord"];
+        return YES;                   /* the chord itself is never forwarded */
+    }
+    /* Letting go of Cmd ends a hold, whichever half of it came up first. */
+    if (!(flags & NSEventModifierFlagCommand))
+        [self cancelQuitHold];
+    [self.view handleFlagsChanged:event];
+    return YES;
+}
+
+- (BOOL)tapKeyDown:(NSEvent *)event
+{
+    self.escapeArmed = NO;            /* a real keystroke, not the chord */
+
+    switch ([self quitActionForKeyDown:event]) {
+    case VSM_QUIT_NOW:
+        [self quitNow];
+        return YES;
+    case VSM_QUIT_HOLD:
+        /* Autorepeat must not restart the clock, or holding it forever would
+         * never reach a second. */
+        if (!event.isARepeat)
+            [self startQuitHoldForKeyCode:event.keyCode];
+        break;
+    case VSM_QUIT_NONE:
+        break;
+    }
+    [self.view sendKeyCode:event.keyCode down:YES];
+    return YES;
+}
+
+- (BOOL)tapKeyUp:(NSEvent *)event
+{
+    /* Match the physical key that started the hold rather than a character:
+     * it is the same keycode going up as came down on every layout. */
+    if (self.quitHoldTimer && event.keyCode == self.quitHoldKeyCode)
+        [self cancelQuitHold];
+    [self.view sendKeyCode:event.keyCode down:NO];
+    return YES;
+}
+
+/* ------------------------------------------------------------ Cmd-Q policy
+ *
+ * The single decision point, asked by both the event tap and the local key
+ * monitor.  Captured, Cmd-Q belongs to the guest (Omarchy binds SUPER+Q to
+ * "close window" and it is used constantly), and only holding it quits the
+ * viewer -- Chrome's rule, and UTM's "captured goes to the guest".
+ * Uncaptured it quits at once, from any state including a modal dialog,
+ * which is the behaviour the monitor exists for.
+ *
+ * The hold needs the key-up that only the tap delivers -- a key equivalent
+ * never produces one -- so with no tap a captured Cmd-Q simply goes to the
+ * guest through -performKeyEquivalent: and quitting is the menu's job. */
+- (VsmQuitAction)quitActionForKeyDown:(NSEvent *)event
+{
+    /* -characters, not -charactersIgnoringModifiers: with a non-Latin layout
+     * active (Russian, Greek, ...) the latter is the layout's own letter --
+     * "й" for the Q key -- and the chord would never be recognised.  Under
+     * Cmd, -characters is what AppKit itself matches key equivalents against:
+     * the ASCII-capable layout's letter, which is "q" on any keyboard whose Q
+     * key is where Q is, and follows the key on the ones where it is not. */
+    /* Only the four modifiers a user can mean: Cmd set, nothing else of
+     * consequence.  Matching the whole device-independent field instead
+     * fails on Caps Lock, and on the bits macOS itself adds to an event that
+     * has been through the tap chain (0x20000000 on a posted event). */
+    const NSEventModifierFlags interesting =
+        NSEventModifierFlagCommand | NSEventModifierFlagShift |
+        NSEventModifierFlagControl | NSEventModifierFlagOption;
+
+    if ((event.modifierFlags & interesting) != NSEventModifierFlagCommand ||
+        [event.characters caseInsensitiveCompare:@"q"] != NSOrderedSame)
+        return VSM_QUIT_NONE;
+    if (![self captureActive])
+        return VSM_QUIT_NOW;
+    return self.tap.active ? VSM_QUIT_HOLD : VSM_QUIT_NONE;
+}
+
+- (void)quitNow
+{
+    [self.view releaseAllKeys];
+    [NSApp terminate:nil];
+}
+
+- (void)startQuitHoldForKeyCode:(unsigned short)keyCode
+{
+    if (self.quitHoldTimer)
+        return;
+    self.quitHoldKeyCode = keyCode;
+    [self showQuitHUD];
+    /* Scheduled by hand in the common modes: a hold has to keep counting
+     * while a menu is tracking or a sheet is up, not just in the default
+     * run loop mode. */
+    self.quitHoldTimer = [NSTimer timerWithTimeInterval:VSM_QUIT_HOLD_SECONDS
+                                                 target:self
+                                               selector:@selector(quitHoldFired:)
+                                               userInfo:nil
+                                                repeats:NO];
+    [NSRunLoop.mainRunLoop addTimer:self.quitHoldTimer
+                            forMode:NSRunLoopCommonModes];
+}
+
+- (void)cancelQuitHold
+{
+    if (!self.quitHoldTimer)
+        return;
+    [self.quitHoldTimer invalidate];
+    self.quitHoldTimer = nil;
+    [self hideQuitHUD];
+}
+
+- (void)quitHoldFired:(NSTimer *)timer
+{
+    (void)timer;
+    self.quitHoldTimer = nil;
+    [self hideQuitHUD];
+    NSLog(@"Cmd-Q held for %.0f s: quitting", VSM_QUIT_HOLD_SECONDS);
+    /* The press was forwarded when the key went down and the guest will
+     * never see the matching key-up, because the app is about to go away.
+     * Send it before the session is torn down so nothing sticks. */
+    [self.view sendKeyCode:self.quitHoldKeyCode down:NO];
+    [self quitNow];
+}
+
+/* A borderless panel rather than an alert: it must appear over a fullscreen
+ * guest in its own Space, must not take focus (the key is still down and its
+ * release has to reach the same responder), and must vanish the instant the
+ * key comes up. */
+- (void)showQuitHUD
+{
+    NSRect frame;
+
+    if (!self.quitHUD) {
+        NSPanel *panel = [[VsmHUDPanel alloc]
+            initWithContentRect:NSMakeRect(0, 0, 260, 68)
+                      styleMask:(NSWindowStyleMaskBorderless |
+                                 NSWindowStyleMaskNonactivatingPanel)
+                        backing:NSBackingStoreBuffered
+                          defer:NO];
+        NSTextField *label = [NSTextField labelWithString:@"Hold ⌘Q to Quit"];
+        NSView *content = panel.contentView;
+
+        panel.opaque = NO;
+        panel.backgroundColor = NSColor.clearColor;
+        panel.level = NSStatusWindowLevel;
+        panel.ignoresMouseEvents = YES;
+        panel.hidesOnDeactivate = NO;
+        panel.releasedWhenClosed = NO;
+        panel.becomesKeyOnlyIfNeeded = YES;
+        panel.collectionBehavior = (NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                    NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                    NSWindowCollectionBehaviorIgnoresCycle);
+        content.wantsLayer = YES;
+        content.layer.backgroundColor =
+            [NSColor colorWithWhite:0.0 alpha:0.78].CGColor;
+        content.layer.cornerRadius = 14.0;
+        label.font = [NSFont boldSystemFontOfSize:19];
+        label.textColor = NSColor.whiteColor;
+        label.alignment = NSTextAlignmentCenter;
+        label.frame = NSMakeRect(0, 22, 260, 26);
+        [content addSubview:label];
+        self.quitHUD = panel;
+    }
+    frame = self.window ? self.window.frame
+                        : NSScreen.mainScreen.frame;
+    [self.quitHUD setFrameOrigin:
+        NSMakePoint(NSMidX(frame) - self.quitHUD.frame.size.width / 2,
+                    NSMidY(frame) - self.quitHUD.frame.size.height / 2)];
+    [self.quitHUD orderFront:nil];
+    NSLog(@"Cmd-Q down while captured: forwarded to the guest, "
+          @"hold %.0f s to quit", VSM_QUIT_HOLD_SECONDS);
+}
+
+- (void)hideQuitHUD
+{
+    [self.quitHUD orderOut:nil];
 }
 
 - (void)sendKeyChord:(NSMenuItem *)item
@@ -619,7 +1033,13 @@ enum {
  * Quit item alone would leave the user stuck behind the password prompt or
  * the disconnect alert with no way out but the Dock.  A local key monitor
  * sees the event before it reaches the responder chain, in the modal run loop
- * as well as the normal one, so Cmd-Q means quit in every state. */
+ * as well as the normal one, so Cmd-Q means quit in every state that is not
+ * the guest's.
+ *
+ * Which states those are is -quitActionForKeyDown:'s answer, not this
+ * block's: the monitor and the event tap ask the same question, and only
+ * VSM_QUIT_NOW is actionable here (an event the tap wanted was consumed and
+ * never arrives, and forwarding is the responder chain's job). */
 - (void)installQuitMonitor
 {
     __weak VsmAppDelegate *weakSelf = self;
@@ -629,18 +1049,8 @@ enum {
                                      handler:^NSEvent *(NSEvent *event) {
         VsmAppDelegate *self = weakSelf;
 
-        /* A local monitor sees the event before the responder chain does, so
-         * without this it would beat -[VsmView performKeyEquivalent:] to
-         * Cmd-Q and the guest would never get it.  Capture only claims the
-         * chord while a session is on screen, which is exactly when no modal
-         * dialog is up -- so the escape hatch this monitor exists for is
-         * untouched. */
-        if (self.view.captureKeyboard && self.spice && self.window.isKeyWindow)
-            return event;
-        if ((event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask)
-                == NSEventModifierFlagCommand &&
-            [event.charactersIgnoringModifiers isEqualToString:@"q"]) {
-            [NSApp terminate:nil];
+        if ([self quitActionForKeyDown:event] == VSM_QUIT_NOW) {
+            [self quitNow];
             return nil;
         }
         return event;
@@ -652,6 +1062,11 @@ enum {
     [self buildMenu];
     [self installQuitMonitor];
     [self installDumpSignalHandler];
+    /* Capture defaults on, so this launch is the first enable: ask for the
+     * Accessibility grant once here and never again this run.  Without it
+     * everything below still works, minus the system chords. */
+    [self installTapPrompting:YES];
+    [self updateKeyboardOwnership];
 
     /* A URI on argv means "connect to this now", exactly as before the
      * connect window existed; without one the user is asked. */
@@ -709,6 +1124,7 @@ enum {
     [self.window makeKeyAndOrderFront:nil];
     [self.window makeFirstResponder:self.view];
     [NSApp activateIgnoringOtherApps:YES];
+    [self updateKeyboardOwnership];
 
     vsm_spice_start(self.spice);
 }
@@ -724,6 +1140,8 @@ enum {
     [self.view releaseAllKeys];
     self.spice = NULL;
     self.view.spice = NULL;
+    [self cancelQuitHold];
+    [self noteCaptureSuspendedBy:@"session disconnected"];
     vsm_spice_stop(spice);
     vsm_spice_free(spice);
 }
@@ -922,8 +1340,33 @@ enum {
     }
 }
 
-- (void)windowDidResignKey:(NSNotification *)note   { [self.view releaseAllKeys]; }
-- (void)applicationDidResignActive:(NSNotification *)n { [self.view releaseAllKeys]; }
+/* Auto-suspend: capture follows focus.  -captureActive already reads these
+ * two states, so the tap stops consuming by itself the moment either goes
+ * false; what is left to do here is release the guest's keys, drop any hold
+ * in progress and put the edge in the log. */
+- (void)windowDidResignKey:(NSNotification *)note
+{
+    (void)note;
+    [self.view releaseAllKeys];
+    [self cancelQuitHold];
+    self.escapeArmed = NO;
+    [self noteCaptureSuspendedBy:@"viewer window resigned key"];
+}
+
+- (void)applicationDidResignActive:(NSNotification *)note
+{
+    (void)note;
+    [self.view releaseAllKeys];
+    [self cancelQuitHold];
+    self.escapeArmed = NO;
+    [self noteCaptureSuspendedBy:@"application deactivated"];
+}
+
+- (void)applicationDidBecomeActive:(NSNotification *)note
+{
+    (void)note;
+    [self noteCaptureState:@"app activated"];
+}
 
 /* NO, because the window the user closes is usually on its way to being
  * replaced: closing the viewer hands them back to the connect window, and the

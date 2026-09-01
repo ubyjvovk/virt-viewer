@@ -53,11 +53,17 @@ Two launch modes:
   `NSUserDefaults` under `VsmLastURI` and then proceeds down the same path as
   the argv case. Only the URI is remembered — never a password.
 
-⌘Q quits from any state *except* while keyboard capture is claiming it — see
+⌘Q quits from any state *except* while keyboard capture is claiming it, where
+a **tap** of ⌘Q goes to the guest and **holding it for a second** quits — see
 "Menus and keyboard capture" below. When it does quit, every key still held is
 released on the guest, the session is disconnected and the GLib thread is
 joined before the process exits. It works while a modal dialog is up too — see
 below.
+
+Capturing the chords macOS reserves for itself (⌘Space, ⌘Tab, ⌘\`, the
+screenshot keys) needs a one-time **Accessibility** grant; without it the
+viewer runs exactly as it does below, minus those chords. See "System
+shortcuts and the Accessibility grant".
 
 ### Environment variables
 
@@ -69,6 +75,7 @@ below.
 | `VSM_CURSOR_SELFTEST=1` | two seconds after the first frame, drive a synthetic cursor script (two shapes with different hotspots, then hide, then reset) through the real cursor code path |
 | `VSM_CURSOR_CHURN=N` | with `VSM_CURSOR_SELFTEST`, replace the cursor N times as fast as possible first, so `leaks(1)` can show there is no per-define leak |
 | `VSM_SENDKEY_SELFTEST=1` | three seconds after the first frame, send one harmless chord (Shift+F11) through the same path as the Send Key menu, so the ordered-press/reverse-release behaviour is provable without firing Ctrl+Alt+Del at a live guest |
+| `VSM_NO_EVENT_TAP=1` | behave as though there were no Accessibility grant: never install the event tap. The only way to test the degraded path on a machine that *has* the grant, since a process cannot revoke its own TCC entry |
 | `VSM_SELFTEST_QUIT=1` | with `VSM_SELFTEST`, terminate via the ⌘Q action four seconds later |
 | `SPICE_DEBUG=1 G_MESSAGES_DEBUG=all` | spice-client-glib's own protocol tracing |
 
@@ -160,6 +167,7 @@ The menu bar has three menus beyond the Apple one:
 | View | Actual Size | ⌘0 | resize the window to guest pixels ÷ `backingScaleFactor` — the size it is given on connect, one guest pixel per physical display pixel |
 | View | Enter/Exit Full Screen | ctrl+⌘F | native macOS fullscreen; AppKit renames the item itself |
 | Input | Capture Keyboard | — | toggle, **on by default**, checkmarked while on |
+| Input | Capture System Shortcuts | — | the event-tap tier; checkmarked while the tap is capturing, titled "(needs Accessibility)" until the grant exists |
 | Input | Send Key ▸ | — | Ctrl+Alt+Del, Ctrl+Alt+Backspace, PrintScreen, F11 |
 
 Actual Size and every Send Key item are disabled while no session is
@@ -178,22 +186,108 @@ equivalents to the key window's view hierarchy before the main menu, so the
 view wins; the ⌘ key itself has already reached the guest through
 `flagsChanged:`, and only the other key of the chord needs the press/release
 pair the view sends (a key equivalent never produces a matching `keyUp:`).
+That is tier 1, the mechanism that needs no permissions; with the event tap of
+"System shortcuts and the Accessibility grant" installed, the tap has taken
+the same chord long before AppKit looks for a key equivalent, and these
+responder methods stand down entirely.
 
 The consequences, in order of how surprising they are:
 
-- **⌘Q does not quit while capture is on.** It types SUPER+Q into the guest.
-  The local ⌘Q event monitor that keeps Quit working behind modal dialogs
-  stands aside for exactly this case — and only this case, since capture never
-  claims the chord while a dialog is up (a dialog means no live session).
+- **⌘Q does not quit while capture is on.** A tap of it types SUPER+Q into the
+  guest; holding it for a second quits the viewer. See "The ⌘Q rule" below.
 - The app's own shortcuts (⌘0, ctrl+⌘F) work only while capture is **off** or
   no session is connected.
 - **The menu bar is always reachable with the mouse**, in every state, and
-  that is how you turn capture off.
+  that is how you turn capture off — as is the ⌃⌥ escape chord.
 - With capture off, the bare ⌘ press is not forwarded either, so using a Mac
   shortcut cannot trip whatever the guest binds on SUPER. Every other
   modifier (control, option, shift) always reaches the guest.
-- System-owned chords — ⌘-Space, ⌘-Tab, the screenshot keys — are taken by
-  macOS before any application sees them and are *not* caught here.
+- System-owned chords — ⌘Space, ⌘Tab, ⌘\`, the screenshot keys — never reach an
+  application through AppKit at all. Capturing *those* is the event tap's job,
+  described next; without the Accessibility grant they stay with macOS and
+  everything else here is unchanged.
+
+### System shortcuts and the Accessibility grant
+
+Keyboard capture has **two tiers**, and the Input menu shows both:
+
+| tier | mechanism | needs | catches |
+| --- | --- | --- | --- |
+| 1. Capture Keyboard | `VsmView`'s responder methods | nothing | every key AppKit delivers to the app, ⌘-chords included |
+| 2. Capture System Shortcuts | `CGEventTap` (`vsm-tap.m`) | one-time Accessibility grant | additionally ⌘Space, ⌘Tab, ⌘\`, the screenshot keys — everything macOS would otherwise swallow first |
+
+Tier 2 is a **session-wide, head-inserted, active** event tap: it sees key
+down, key up and flags-changed events before the window server turns them
+into Spotlight or the app switcher, and returns `NULL` for the ones it takes.
+It takes an event only while capture is on **and** the viewer window is key
+**and** the app is active **and** a session is connected; in every other state
+it returns the event untouched, so the rest of the machine behaves exactly as
+if the viewer were not running. This is the same mechanism Parallels, VMware
+Fusion and Screen Sharing use, and it needs the same grant they do.
+
+**Single source of keystrokes.** While the tap is installed and capture is on,
+it is the *only* sender: `VsmView`'s `keyDown:`/`keyUp:`/`flagsChanged:`/
+`performKeyEquivalent:` all return immediately (`tapOwnsKeyboard`), so a chord
+cannot be delivered twice. The moment the tap goes away — no grant, or the
+menu item toggled off — the flag clears and tier 1 behaves exactly as it did
+before the tap existed.
+
+**Granting Accessibility.** On first launch the viewer asks macOS to show its
+one-time dialog (once per run — never a prompt loop). To grant it by hand:
+
+1. **System Settings → Privacy & Security → Accessibility**.
+2. Enable the entry for the process that launched the viewer, adding it with
+   **+** if it is not listed.
+3. Back in the viewer, click **Input → Capture System Shortcuts**. It
+   re-checks the grant right then; no restart, no polling.
+
+TCC attributes the grant to the **responsible process**, not to the binary:
+running `build/spice-viewer` from a shell, the grant belongs to the *terminal
+application*, and every viewer started from that terminal inherits it. Bundled
+as a `.app` later, the bundle is its own responsible process and needs its own
+grant — a fresh entry in that list, not an inherited one.
+
+Without the grant nothing breaks: the tap is never created, the menu item
+reads "Capture System Shortcuts (needs Accessibility)", and tier 1 works as
+described above. `VSM_NO_EVENT_TAP=1` forces that state on a machine that has
+the grant, which is how it is tested.
+
+### Escaping capture from the keyboard
+
+Press **⌃⌥ together and release them** with no other key in between: capture
+turns off. It is the same gesture that ungrabs the mouse, it is always handled
+locally and never forwarded, and it works even when every ⌘ chord belongs to
+the guest. Because a chord is only recognisable on release, the two presses
+have already reached the guest by then — so firing it also releases every key
+the guest still holds, and the log says how many. Turn capture back on from
+the Input menu.
+
+Capture also suspends itself, releasing the guest's keys each time, when the
+viewer window stops being key, when the application is deactivated, and when
+the session disconnects. It resumes when the window is key again.
+
+### The ⌘Q rule
+
+⌘Q is the one chord with a split personality, because a guest bound on SUPER
+uses SUPER+Q constantly (Omarchy closes a window with it) and a Mac user
+reaches for ⌘Q to quit:
+
+| state | ⌘Q does |
+| --- | --- |
+| captured, with the event tap | **tap:** SUPER+Q to the guest. **hold ~1 s:** quits the viewer, showing a "Hold ⌘Q to Quit" overlay while the key is down |
+| captured, no event tap | goes to the guest (there is no key-up to time a hold with); quit from the menu |
+| not captured — capture off, no session, or a modal dialog is up | quits immediately, exactly as before |
+
+Chrome's hold-to-quit, and UTM's "captured means the guest gets it". The
+decision lives in one place, `-quitActionForKeyDown:`, which both the event
+tap and the local ⌘Q key monitor ask, so the two cannot race to different
+answers. Quitting on a hold releases the forwarded press first, so the guest
+is never left holding SUPER+Q.
+
+The chord is matched on `-characters`, not `-charactersIgnoringModifiers`:
+with a non-Latin layout active (Russian, Greek, …) the latter is that layout's
+own letter and ⌘Q would never be recognised. Only ⌘ may be down — Caps Lock
+and the bits macOS adds to a tapped event are ignored.
 
 **Send Key** exists for the chords that never arrive: ones macOS owns, and
 ones (Ctrl+Alt+Del) that a Mac keyboard cannot express. Each item carries its
@@ -358,6 +452,7 @@ rather than half-implemented — see the gap list in the ticket report.
 | `main.m` | `NSApplication`, session state machine, window, menu, and the `VsmView` responder methods |
 | `main-view.h` | the `VsmView` interface, shared with the debug helpers |
 | `vsm-connect.m/.h` | connect window, password prompt, disconnect alert |
+| `vsm-tap.m/.h` | the `CGEventTap` that captures the system-reserved chords |
 | `vsm-spice.c/.h` | GLib thread, session and channel wiring, damage blit, input marshalling |
 | `vsm-keymap.c/.h` | generated osx → xtkbd scancode table |
 | `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test, the synthetic cursor self-test and the send-key chord self-test |

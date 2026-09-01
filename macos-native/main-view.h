@@ -20,9 +20,22 @@
  * -performKeyEquivalent: and forwarded to the guest as scancodes instead of
  * being handled by the app -- Cmd-Q included.  The Input menu toggles it. */
 @property (nonatomic, assign) BOOL captureKeyboard;
+/* Single source rule: set while a live CGEventTap forwards the keyboard on
+ * this view's behalf (see vsm-tap.h).  The responder methods then do nothing,
+ * so a chord the tap already consumed and forwarded can never be sent a
+ * second time from AppKit's own dispatch of the same keystroke.  Cleared
+ * whenever the tap is gone, which restores the responder-only behaviour
+ * exactly. */
+@property (nonatomic, assign) BOOL tapOwnsKeyboard;
 
 /* Rebind the layer to the current IOSurface so CA re-reads its bytes. */
 - (void)refreshSurface;
+/* Forward one macOS virtual keycode to the guest as a scancode.  The tap
+ * path calls this directly: its events never reach the responder chain. */
+- (void)sendKeyCode:(unsigned short)keyCode down:(BOOL)down;
+/* The body of -flagsChanged:, without the tapOwnsKeyboard guard, so the tap
+ * path shares the left/right modifier synthesis instead of copying it. */
+- (void)handleFlagsChanged:(NSEvent *)event;
 /* Release every key the guest still thinks is held (focus loss, quit). */
 - (void)releaseAllKeys;
 /* Send @scancodes (XT/AT set 1, 0x1xx for the 0xe0-prefixed extended keys)
