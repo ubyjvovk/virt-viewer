@@ -18,9 +18,9 @@ mkdir -p "$BUILD_DIR"
 # shellcheck disable=SC2086  # pkg-config output must word-split
 clang -g -O2 -Wall -Wextra -Werror -fobjc-arc \
       -o "$BIN" \
-      main.m vsm-spice.c vsm-keymap.c \
+      main.m vsm-debug.m vsm-spice.c vsm-keymap.c \
       $CFLAGS_PKG $LIBS_PKG \
-      -framework Cocoa -framework QuartzCore -framework IOSurface
+      -framework Cocoa -framework QuartzCore -framework IOSurface -framework ImageIO -framework CoreServices
 
 # Ad-hoc signature so the binary can take keyboard focus when launched from a
 # terminal on a machine with a hardened runtime policy.

@@ -13,6 +13,8 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 
+#include "main-view.h"
+#include "vsm-debug.h"
 #include "vsm-keymap.h"
 #include "vsm-spice.h"
 
@@ -40,12 +42,6 @@ enum {
 };
 
 static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
-
-@interface VsmView : NSView
-@property (nonatomic, assign) VsmSpice *spice;
-@property (nonatomic, assign) int guestWidth;
-@property (nonatomic, assign) int guestHeight;
-@end
 
 @implementation VsmView {
     NSMutableSet<NSNumber *> *_heldModifierKeyCodes;
@@ -282,6 +278,8 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 @property (nonatomic, strong) VsmView *view;
 @property (nonatomic, assign) VsmSpice *spice;
 @property (nonatomic, copy)   NSString *uri;
+@property (nonatomic, strong) dispatch_source_t dumpSource;
+@property (nonatomic, assign) BOOL selftestDone;
 @end
 
 @implementation VsmAppDelegate
@@ -327,7 +325,37 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     [self.window makeFirstResponder:self.view];
     [NSApp activateIgnoringOtherApps:YES];
 
+    [self installDumpSignalHandler];
     vsm_spice_start(self.spice);
+}
+
+/* SIGUSR1 writes the guest framebuffer to $VSM_DUMP_DIR/frame-N.png.  This
+ * is the only way to see what the client is displaying on a machine whose
+ * login session is locked, where screencapture(1) returns the lock screen. */
+- (void)installDumpSignalHandler
+{
+    NSString *dir = NSProcessInfo.processInfo.environment[@"VSM_DUMP_DIR"];
+    if (!dir)
+        return;
+
+    signal(SIGUSR1, SIG_IGN);
+    dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL,
+                                                   SIGUSR1, 0,
+                                                   dispatch_get_main_queue());
+    __block int seq = 0;
+    dispatch_source_set_event_handler(src, ^{
+        NSString *path = [dir stringByAppendingPathComponent:
+                          [NSString stringWithFormat:@"frame-%d.png", ++seq]];
+        NSRect content = [self.window contentRectForFrameRect:self.window.frame];
+        NSLog(@"window: title=\"%@\" content=%.0fx%.0f pt, backing scale %.1f, "
+              @"layer contentsScale %.1f",
+              self.window.title, content.size.width, content.size.height,
+              self.window.backingScaleFactor, self.view.layer.contentsScale);
+        vsm_dump_surface(self.spice, path);
+    });
+    dispatch_resume(src);
+    self.dumpSource = src;
+    NSLog(@"SIGUSR1 will dump frames to %@", dir);
 }
 
 - (void)primaryCreatedWidth:(int)width height:(int)height
@@ -343,6 +371,25 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     self.window.contentAspectRatio = NSMakeSize(width, height);
     [self.view refreshSurface];
     NSLog(@"primary surface %dx%d (backing scale %.1f)", width, height, scale);
+
+    if (!self.selftestDone &&
+        NSProcessInfo.processInfo.environment[@"VSM_SELFTEST"]) {
+        self.selftestDone = YES;
+        /* Give the guest a moment to settle, then replay the script. */
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+            vsm_run_input_selftest(self.view, self.window);
+            if (NSProcessInfo.processInfo.environment[@"VSM_SELFTEST_QUIT"]) {
+                /* Same selector the Cmd-Q menu item sends, so this exercises
+                 * the real quit path: release-all-keys, disconnect, join. */
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 4 * NSEC_PER_SEC),
+                               dispatch_get_main_queue(), ^{
+                    NSLog(@"selftest: terminating via the Cmd-Q action");
+                    [NSApp terminate:nil];
+                });
+            }
+        });
+    }
 }
 
 - (void)windowDidResignKey:(NSNotification *)note   { [self.view releaseAllKeys]; }

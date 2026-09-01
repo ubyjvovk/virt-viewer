@@ -305,6 +305,8 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
     gint id = 0;
 
     g_object_get(channel, "channel-id", &id, NULL);
+    notify_status(self, "channel-new: %s id %d",
+                  g_type_name_from_instance((GTypeInstance *)channel), id);
 
     if (SPICE_IS_MAIN_CHANNEL(channel)) {
         self->main_channel = SPICE_MAIN_CHANNEL(channel);
@@ -357,10 +359,18 @@ static gpointer spice_thread(gpointer data)
 {
     VsmSpice *self = data;
 
-    g_main_context_push_thread_default(self->ctx);
-
+    /* Take ownership of the default context on this thread for the lifetime
+     * of the loop; g_main_loop_run() acquires it for us. */
     self->session = spice_session_new();
-    g_object_set(self->session, "uri", self->uri, NULL);
+    /* Milestone 1 is screen + keyboard + mouse.  Turning audio and usbredir
+     * off at the session keeps spice-gtk from constructing those channels at
+     * all -- otherwise it spins up GStreamer and libusb for pipelines this
+     * client never reads. */
+    g_object_set(self->session,
+                 "uri", self->uri,
+                 "enable-audio", FALSE,
+                 "enable-usbredir", FALSE,
+                 NULL);
     g_signal_connect(self->session, "channel-new",
                      G_CALLBACK(on_channel_new), self);
     g_signal_connect(self->session, "channel-destroy",
@@ -373,7 +383,6 @@ static gpointer spice_thread(gpointer data)
     g_main_loop_run(self->loop);
 
     g_clear_object(&self->session);
-    g_main_context_pop_thread_default(self->ctx);
     return NULL;
 }
 
@@ -511,7 +520,7 @@ VsmSpice *vsm_spice_new(const char *uri, const VsmSpiceCallbacks *cb, void *user
     self->uri = g_strdup(uri);
     self->cb = *cb;
     self->user = user;
-    self->ctx = g_main_context_new();
+    self->ctx = g_main_context_ref(g_main_context_default());
     self->loop = g_main_loop_new(self->ctx, FALSE);
     self->pressed = g_hash_table_new(g_direct_hash, g_direct_equal);
     g_mutex_init(&self->lock);
