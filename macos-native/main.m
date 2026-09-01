@@ -1207,19 +1207,51 @@ enum {
     vsm_vv_free(vv);
 }
 
-/* spice:// (and spice+tls://) URLs, both at launch and while running.  macOS
- * can hand over several at once; this viewer has one display, so the first is
- * opened and the rest are refused exactly as a second URL would be. */
+/* A spice:// or spice+tls:// URL.  The scheme is checked here rather than
+ * left to spice-client-glib: a URL of some other scheme is a LaunchServices
+ * misroute, and "connection failed" would be a misleading way to say so. */
+- (void)openSpiceURL:(NSURL *)url
+{
+    NSString *scheme = url.scheme.lowercaseString;
+
+    if (![scheme isEqualToString:@"spice"] &&
+        ![scheme isEqualToString:@"spice+tls"]) {
+        [self reportOpenFailure:
+            [NSString stringWithFormat:@"“%@” is not a SPICE address. "
+                                       @"This viewer opens spice:// and "
+                                       @"spice+tls:// connections.",
+                                       url.absoluteString]];
+        return;
+    }
+    [self openConnectionURI:url.absoluteString password:nil];
+}
+
+/* Everything LaunchServices opens, both at launch and while running: URLs
+ * from a browser and files from Finder alike.  Since macOS 10.13 a delegate
+ * that implements this method receives file opens here as file:// URLs and
+ * -application:openFile: is never called, so the two have to be told apart
+ * here -- handing a file:// URL to the session is how you get "connection
+ * failed" for a perfectly good .vv file.
+ *
+ * macOS can hand over several at once; this viewer has one display, so the
+ * first one is opened and the rest hit the already-connected alert. */
 - (void)application:(NSApplication *)app openURLs:(NSArray<NSURL *> *)urls
 {
     (void)app;
-    for (NSURL *url in urls)
-        [self openConnectionURI:url.absoluteString password:nil];
+    for (NSURL *url in urls) {
+        if (url.isFileURL)
+            [self openVvFile:url.path];
+        else
+            [self openSpiceURL:url];
+    }
 }
 
-/* Double-clicked documents.  YES either way: the failure has already been
- * reported in our own words, and returning NO only adds a second, vaguer
- * Finder alert on top of it. */
+/* The pre-10.13 document-open path.  AppKit will not call it while
+ * -application:openURLs: exists, but an app that is asked to open a document
+ * by some other means (an Apple event from a script, say) still lands here,
+ * and both routes must behave the same.  YES either way: the failure has
+ * already been reported in our own words, and returning NO only adds a
+ * second, vaguer Finder alert on top of it. */
 - (BOOL)application:(NSApplication *)app openFile:(NSString *)filename
 {
     (void)app;
