@@ -426,6 +426,19 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
 @end
 
+/* The hold-to-quit overlay's window.  It must never become key: the key it
+ * is announcing is still physically down, and every remaining event of that
+ * keystroke -- the release that cancels the hold, and the auto-suspend that
+ * a viewer window losing key triggers -- depends on the viewer window
+ * keeping focus while the panel is on screen. */
+@interface VsmHUDPanel : NSPanel
+@end
+
+@implementation VsmHUDPanel
+- (BOOL)canBecomeKeyWindow  { return NO; }
+- (BOOL)canBecomeMainWindow { return NO; }
+@end
+
 /* ------------------------------------------------------------- delegate */
 
 /* What ⌘Q means right now.  One enum, one decision point
@@ -677,6 +690,17 @@ enum {
 
 /* Log capture edges once each.  The auto-suspend cases are invisible
  * otherwise: nothing is sent, so a scancode trace shows only silence. */
+/* An auto-suspend trigger fired.  Logged whether or not the state actually
+ * moved: "did the tap stand down when the window lost focus?" is a question
+ * about the trigger, and the answer is worthless if the line only appears
+ * when capture happened to be active at the time. */
+- (void)noteCaptureSuspendedBy:(NSString *)reason
+{
+    self.captureWasActive = [self captureActive];
+    NSLog(@"capture auto-suspend: %@ (capture now %s)", reason,
+          self.captureWasActive ? "active" : "inactive");
+}
+
 - (void)noteCaptureState:(NSString *)reason
 {
     BOOL active = [self captureActive];
@@ -845,8 +869,15 @@ enum {
      * Cmd, -characters is what AppKit itself matches key equivalents against:
      * the ASCII-capable layout's letter, which is "q" on any keyboard whose Q
      * key is where Q is, and follows the key on the ones where it is not. */
-    if ((event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask)
-            != NSEventModifierFlagCommand ||
+    /* Only the four modifiers a user can mean: Cmd set, nothing else of
+     * consequence.  Matching the whole device-independent field instead
+     * fails on Caps Lock, and on the bits macOS itself adds to an event that
+     * has been through the tap chain (0x20000000 on a posted event). */
+    const NSEventModifierFlags interesting =
+        NSEventModifierFlagCommand | NSEventModifierFlagShift |
+        NSEventModifierFlagControl | NSEventModifierFlagOption;
+
+    if ((event.modifierFlags & interesting) != NSEventModifierFlagCommand ||
         [event.characters caseInsensitiveCompare:@"q"] != NSOrderedSame)
         return VSM_QUIT_NONE;
     if (![self captureActive])
@@ -909,7 +940,7 @@ enum {
     NSRect frame;
 
     if (!self.quitHUD) {
-        NSPanel *panel = [[NSPanel alloc]
+        NSPanel *panel = [[VsmHUDPanel alloc]
             initWithContentRect:NSMakeRect(0, 0, 260, 68)
                       styleMask:(NSWindowStyleMaskBorderless |
                                  NSWindowStyleMaskNonactivatingPanel)
@@ -924,6 +955,7 @@ enum {
         panel.ignoresMouseEvents = YES;
         panel.hidesOnDeactivate = NO;
         panel.releasedWhenClosed = NO;
+        panel.becomesKeyOnlyIfNeeded = YES;
         panel.collectionBehavior = (NSWindowCollectionBehaviorCanJoinAllSpaces |
                                     NSWindowCollectionBehaviorFullScreenAuxiliary |
                                     NSWindowCollectionBehaviorIgnoresCycle);
@@ -1109,7 +1141,7 @@ enum {
     self.spice = NULL;
     self.view.spice = NULL;
     [self cancelQuitHold];
-    [self noteCaptureState:@"session disconnected"];
+    [self noteCaptureSuspendedBy:@"session disconnected"];
     vsm_spice_stop(spice);
     vsm_spice_free(spice);
 }
@@ -1318,7 +1350,7 @@ enum {
     [self.view releaseAllKeys];
     [self cancelQuitHold];
     self.escapeArmed = NO;
-    [self noteCaptureState:@"window resigned key"];
+    [self noteCaptureSuspendedBy:@"viewer window resigned key"];
 }
 
 - (void)applicationDidResignActive:(NSNotification *)note
@@ -1327,7 +1359,7 @@ enum {
     [self.view releaseAllKeys];
     [self cancelQuitHold];
     self.escapeArmed = NO;
-    [self noteCaptureState:@"app deactivated"];
+    [self noteCaptureSuspendedBy:@"application deactivated"];
 }
 
 - (void)applicationDidBecomeActive:(NSNotification *)note
