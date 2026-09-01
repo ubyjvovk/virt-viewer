@@ -127,6 +127,22 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   `virt-viewer-<version>-macos.dmg` after the project, like the MSI. PM made
   this 3-line edit directly (hdiutil is unusable in sandboxed lanes).
 
+- 2026-09-01 — T-0029 event-tap capture ACCEPTED (1 attempt, $9.53,
+  +772/-30; merged build + 5/5 green). Accessibility was granted to
+  Terminal mid-run → FULL live verification: ⌘Space/⌘Tab captured (guest
+  launcher opened, no Spotlight/switcher), no double-send, ⌃⌥ escape
+  (recognized on release; earlier modifier presses reach the guest but
+  net state emptied via release-all — accepted interpretation), hold-⌘Q
+  1 s quit + HUD (VsmHUDPanel, canBecomeKey NO), degraded path via new
+  VSM_NO_EVENT_TAP hook. Fixed 2 real bugs: ⌘Q unrecognized on non-Latin
+  layouts (host runs Russian; matches -characters now, also fixes
+  T-0024's monitor) and modifier-flag exact-equality vs undocumented
+  bits (also fixes Caps Lock). Notes: escape chord is off-only
+  (re-enable via menu — possible future toggle preference); P3: tap
+  swallows arrows during menu tracking while captured (menu is
+  mouse-driven); after T-0026 bundling the .app needs a FRESH
+  Accessibility grant (README documents it).
+
 ## Board snapshot
 - 2026-09-01 — **21/21 done, drained.** Waves: GTK port T-0001..T-0010; PR
   assembly T-0011; stress reviews T-0012..14; fix wave T-0015..19;
