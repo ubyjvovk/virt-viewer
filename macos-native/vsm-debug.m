@@ -208,9 +208,20 @@ static void define_shape(VsmView *view, int size, int hot_x, int hot_y,
 
 void vsm_run_cursor_selftest(VsmView *view)
 {
-    /* Spread over seconds rather than milliseconds: each step has to be
-     * observable in a screenshot, not just in the log. */
+    /* Churn first: a real session defines a cursor thousands of times, and
+     * the interesting failure is a per-define leak rather than a wrong
+     * shape.  VSM_CURSOR_CHURN=N replaces the previous cursor N times as
+     * fast as it can so leaks(1) has something to find. */
+    NSString *churn = NSProcessInfo.processInfo.environment[@"VSM_CURSOR_CHURN"];
+
     NSLog(@"cursor-selftest: begin");
+    if (churn) {
+        int n = churn.intValue;
+        NSLog(@"cursor-selftest: churn %d defines", n);
+        for (int i = 0; i < n; i++)
+            define_shape(view, 32, 0, 0, (i & 1) ? fill_ring : fill_triangle);
+        NSLog(@"cursor-selftest: churn done");
+    }
     define_shape(view, 32, 0, 0, fill_triangle);
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 6 * NSEC_PER_SEC),
