@@ -286,6 +286,19 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   shape-sending guest (X11/QXL or Windows) — NSBitmapImageRep declared
   premultiplied, GdkPixbuf convention is non-premul; (b) MallocStackLogging
   segfaults spice-gtk coroutine stacks (tool incompat, use plain leaks).
+- 2026-09-01 — T-0024 dialogs ACCEPTED (1 attempt, $6.24, +565/-51;
+  merged tree build + 5/5 green). Connect window (VsmLastURI defaults),
+  auth prompt (session rebuild + set_password before start, wiped on
+  free), disconnect alert Reconnect/Close, vsm_spice_free defers release
+  to main queue (FIFO after joined thread — verified sound; one struct
+  intentionally leaked at exit). Known gap: password path untested
+  against a real authenticated server (brew qemu lacks SPICE) — plumbing
+  verified by inspection to spice_channel_send_spice_ticket.
+  **REVIEW WATCH for T-0025 (claimed before I could append the note):
+  T-0024's -installQuitMonitor swallows ⌘Q ahead of the responder chain
+  in ALL states; T-0025 must gate it on capture state (capture ON +
+  connected + view key → pass through to guest) while keeping the
+  modal-state always-quit behavior. Reject if unaddressed.**
 
 ## Next actions
 - Board is drained; nothing is running. On restart: `tigerteam status`,
