@@ -43,7 +43,6 @@ enum {
     VSM_KC_LALT   = 0x3A, VSM_KC_RALT   = 0x3D,
     VSM_KC_LCMD   = 0x37, VSM_KC_RCMD   = 0x36,
     VSM_KC_CAPS   = 0x39,
-    VSM_KC_Q      = 0x0C,   /* the hold-to-quit chord's other half */
 };
 
 /* How long ⌘Q has to be held before it quits the viewer instead of typing
@@ -466,6 +465,7 @@ typedef enum {
 @property (nonatomic, assign) BOOL escapeArmed;
 /* Running while ⌘Q is held; firing quits, letting go cancels. */
 @property (nonatomic, strong) NSTimer *quitHoldTimer;
+@property (nonatomic, assign) unsigned short quitHoldKeyCode;
 @property (nonatomic, strong) NSPanel *quitHUD;
 /* Last value -captureActive returned, so the edges get logged once each. */
 @property (nonatomic, assign) BOOL captureWasActive;
@@ -604,7 +604,8 @@ enum {
         return YES;
     }
     if (action == @selector(captureSystemShortcuts:)) {
-        BOOL trusted = [VsmEventTap isProcessTrusted:NO];
+        BOOL trusted = [VsmEventTap isProcessTrusted:NO] &&
+                       !NSProcessInfo.processInfo.environment[@"VSM_NO_EVENT_TAP"];
 
         /* Checked only when the tap is actually consuming for us: capture on,
          * tap installed.  Re-checking trust here (menu open, not a timer) is
@@ -719,6 +720,13 @@ enum {
 {
     if (self.tap.active)
         return YES;
+    /* The one path QA cannot reach any other way: TCC grants cannot be
+     * revoked from inside the process, so this is how the no-Accessibility
+     * behaviour gets tested on a machine that has the grant. */
+    if (NSProcessInfo.processInfo.environment[@"VSM_NO_EVENT_TAP"]) {
+        NSLog(@"VSM_NO_EVENT_TAP: pretending there is no Accessibility grant");
+        return NO;
+    }
     if (!self.tap) {
         self.tap = [[VsmEventTap alloc] init];
         self.tap.delegate = self;
@@ -798,7 +806,7 @@ enum {
         /* Autorepeat must not restart the clock, or holding it forever would
          * never reach a second. */
         if (!event.isARepeat)
-            [self startQuitHold];
+            [self startQuitHoldForKeyCode:event.keyCode];
         break;
     case VSM_QUIT_NONE:
         break;
@@ -809,7 +817,9 @@ enum {
 
 - (BOOL)tapKeyUp:(NSEvent *)event
 {
-    if (event.keyCode == VSM_KC_Q)
+    /* Match the physical key that started the hold rather than a character:
+     * it is the same keycode going up as came down on every layout. */
+    if (self.quitHoldTimer && event.keyCode == self.quitHoldKeyCode)
         [self cancelQuitHold];
     [self.view sendKeyCode:event.keyCode down:NO];
     return YES;
@@ -829,9 +839,15 @@ enum {
  * guest through -performKeyEquivalent: and quitting is the menu's job. */
 - (VsmQuitAction)quitActionForKeyDown:(NSEvent *)event
 {
+    /* -characters, not -charactersIgnoringModifiers: with a non-Latin layout
+     * active (Russian, Greek, ...) the latter is the layout's own letter --
+     * "й" for the Q key -- and the chord would never be recognised.  Under
+     * Cmd, -characters is what AppKit itself matches key equivalents against:
+     * the ASCII-capable layout's letter, which is "q" on any keyboard whose Q
+     * key is where Q is, and follows the key on the ones where it is not. */
     if ((event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask)
             != NSEventModifierFlagCommand ||
-        ![event.charactersIgnoringModifiers isEqualToString:@"q"])
+        [event.characters caseInsensitiveCompare:@"q"] != NSOrderedSame)
         return VSM_QUIT_NONE;
     if (![self captureActive])
         return VSM_QUIT_NOW;
@@ -844,10 +860,11 @@ enum {
     [NSApp terminate:nil];
 }
 
-- (void)startQuitHold
+- (void)startQuitHoldForKeyCode:(unsigned short)keyCode
 {
     if (self.quitHoldTimer)
         return;
+    self.quitHoldKeyCode = keyCode;
     [self showQuitHUD];
     /* Scheduled by hand in the common modes: a hold has to keep counting
      * while a menu is tracking or a sheet is up, not just in the default
@@ -879,7 +896,7 @@ enum {
     /* The press was forwarded when the key went down and the guest will
      * never see the matching key-up, because the app is about to go away.
      * Send it before the session is torn down so nothing sticks. */
-    [self.view sendKeyCode:VSM_KC_Q down:NO];
+    [self.view sendKeyCode:self.quitHoldKeyCode down:NO];
     [self quitNow];
 }
 

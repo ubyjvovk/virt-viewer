@@ -526,12 +526,22 @@ static void release_all_keys(VsmSpice *self)
 {
     GHashTableIter iter;
     gpointer key;
+    guint released = 0;
 
     if (self->inputs) {
         g_hash_table_iter_init(&iter, self->pressed);
-        while (g_hash_table_iter_next(&iter, &key, NULL))
+        while (g_hash_table_iter_next(&iter, &key, NULL)) {
             spice_inputs_channel_key_release(self->inputs, GPOINTER_TO_UINT(key));
+            released++;
+        }
     }
+    /* Silent when there was nothing held -- this runs on every focus change.
+     * When there was, saying so is the only evidence a caller (the escape
+     * chord, hold-to-quit, losing focus mid-chord) has that the guest was
+     * not left holding a modifier. */
+    if (released)
+        notify_status(self, "released %u held key%s", released,
+                      released == 1 ? "" : "s");
     g_hash_table_remove_all(self->pressed);
 }
 
