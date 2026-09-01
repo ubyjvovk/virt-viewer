@@ -33,6 +33,7 @@ struct _VsmSpice {
     int                 fb_height;
     GHashTable         *pressed;   /* scancode -> held, for release-all */
     gboolean            stopping;
+    gboolean            forced_relative;  /* VSM_FORCE_RELATIVE asked once */
 
     /* Shared: surface handoff and damage coalescing. */
     GMutex              lock;
@@ -48,6 +49,13 @@ struct _VsmSpice {
 static gboolean vsm_force_relative(void)
 {
     const char *env = g_getenv("VSM_FORCE_RELATIVE");
+    return env && *env == '1';
+}
+
+/* VSM_TRACE=1, read the same way main.m reads it. */
+static gboolean vsm_spice_trace(void)
+{
+    const char *env = g_getenv("VSM_TRACE");
     return env && *env == '1';
 }
 
@@ -346,6 +354,30 @@ static void on_mouse_mode(GObject *object, GParamSpec *pspec G_GNUC_UNUSED,
 
     g_object_get(object, "mouse-mode", &mode, NULL);
     notify_mouse_mode(self, mode == SPICE_MOUSE_MODE_SERVER);
+
+    /* Debug aid: most guests run an agent and therefore negotiate
+     * client/absolute mode, which leaves the relative-mode code untestable
+     * against a real server.  VSM_FORCE_RELATIVE=1 asks for server mode --
+     * here, and not at channel-new, because the request is a message on the
+     * main channel and there is nothing to send it down until the server has
+     * announced a mode.  Asked once: if the server refuses, a retry on every
+     * announcement would be a loop. */
+    if (mode != SPICE_MOUSE_MODE_SERVER && vsm_force_relative() &&
+        !self->forced_relative) {
+        self->forced_relative = TRUE;
+        notify_status(self, "VSM_FORCE_RELATIVE=1: requesting server "
+                            "(relative) mouse mode");
+        spice_main_channel_request_mouse_mode(self->main_channel,
+                                              SPICE_MOUSE_MODE_SERVER);
+    }
+}
+
+/* VSM_TRACE=1: log where the guest says its pointer now is. */
+static void on_cursor_move(SpiceCursorChannel *channel G_GNUC_UNUSED,
+                           gint x, gint y, gpointer data G_GNUC_UNUSED)
+{
+    if (vsm_spice_trace())
+        g_message("cursor-move %d,%d", x, y);
 }
 
 static void on_channel_event(SpiceChannel *channel G_GNUC_UNUSED,
@@ -409,14 +441,6 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
                          G_CALLBACK(on_channel_event), self);
         g_signal_connect(channel, "notify::mouse-mode",
                          G_CALLBACK(on_mouse_mode), self);
-        /* Debug aid: most guests run an agent and therefore client/absolute
-         * mode, which leaves the relative-mode code untestable against a real
-         * server.  VSM_FORCE_RELATIVE=1 asks for server mode as soon as the
-         * main channel exists; unset (the default) nothing is requested and
-         * the server's own choice stands. */
-        if (vsm_force_relative())
-            spice_main_channel_request_mouse_mode(self->main_channel,
-                                                  SPICE_MOUSE_MODE_SERVER);
         return;
     }
 
@@ -443,6 +467,14 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
                          G_CALLBACK(on_cursor_hide), self);
         g_signal_connect(channel, "cursor-reset",
                          G_CALLBACK(on_cursor_reset), self);
+        /* Trace only.  In server/relative mode the guest's pointer position
+         * is known to the client ONLY through this signal -- a guest that
+         * puts its pointer on the cursor plane never draws it into the
+         * framebuffer -- so it is the direct evidence that the deltas this
+         * client sends are moving the guest pointer.  Rendering it is a
+         * separate job; see the gap noted in README.md. */
+        g_signal_connect(channel, "cursor-move",
+                         G_CALLBACK(on_cursor_move), self);
         spice_channel_connect(channel);
         notify_status(self, "cursor channel ready");
         return;
