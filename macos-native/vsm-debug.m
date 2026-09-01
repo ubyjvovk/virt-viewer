@@ -149,3 +149,83 @@ void vsm_run_input_selftest(VsmView *view, NSWindow *window)
 
     NSLog(@"selftest: end");
 }
+
+/* ------------------------------------------------------- cursor selftest */
+
+/* Fill @rgba (premultiplied RGBA, as the cursor channel delivers it) with a
+ * deliberately unmistakable shape: an opaque magenta right triangle with its
+ * right angle at the hotspot, and a one-pixel white outline along the
+ * hypotenuse.  Nothing on a macOS desktop looks like this, so a screenshot
+ * showing it is unambiguous. */
+static void fill_triangle(uint8_t *rgba, int size)
+{
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            uint8_t *px = rgba + ((size_t)y * size + x) * 4;
+            int edge = size - 1 - y;
+            if (x > edge) {                       /* outside the triangle */
+                px[0] = px[1] = px[2] = px[3] = 0;
+            } else if (x >= edge - 1) {           /* hypotenuse outline */
+                px[0] = px[1] = px[2] = px[3] = 0xff;
+            } else {
+                px[0] = 0xff; px[1] = 0x00; px[2] = 0xff; px[3] = 0xff;
+            }
+        }
+    }
+}
+
+/* A hollow square ring, distinct in both size and hotspot from the triangle,
+ * so "the shape changed" is visible without measuring anything. */
+static void fill_ring(uint8_t *rgba, int size)
+{
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            uint8_t *px = rgba + ((size_t)y * size + x) * 4;
+            BOOL onRing = (x < 2 || y < 2 || x >= size - 2 || y >= size - 2);
+            px[0] = onRing ? 0x00 : 0;
+            px[1] = onRing ? 0xff : 0;
+            px[2] = onRing ? 0xff : 0;
+            px[3] = onRing ? 0xff : 0;
+        }
+    }
+}
+
+static void define_shape(VsmView *view, int size, int hot_x, int hot_y,
+                         void (*fill)(uint8_t *, int))
+{
+    uint8_t *rgba = calloc((size_t)size * size, 4);
+    NSCursor *cursor;
+
+    if (!rgba)
+        return;
+    fill(rgba, size);
+    NSLog(@"cursor-selftest: define %dx%d hotspot %d,%d", size, size, hot_x, hot_y);
+    cursor = vsm_cursor_from_rgba(size, size, hot_x, hot_y, rgba);
+    free(rgba);
+    if (cursor)
+        [view setGuestCursor:cursor];
+}
+
+void vsm_run_cursor_selftest(VsmView *view)
+{
+    /* Spread over seconds rather than milliseconds: each step has to be
+     * observable in a screenshot, not just in the log. */
+    NSLog(@"cursor-selftest: begin");
+    define_shape(view, 32, 0, 0, fill_triangle);
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 6 * NSEC_PER_SEC),
+                   dispatch_get_main_queue(), ^{
+        define_shape(view, 24, 12, 12, fill_ring);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 6 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+            NSLog(@"cursor-selftest: hide");
+            [view hideGuestCursor];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 6 * NSEC_PER_SEC),
+                           dispatch_get_main_queue(), ^{
+                NSLog(@"cursor-selftest: reset");
+                [view resetGuestCursor];
+                NSLog(@"cursor-selftest: end");
+            });
+        });
+    });
+}

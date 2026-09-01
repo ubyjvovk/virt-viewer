@@ -24,4 +24,11 @@ BOOL vsm_dump_surface(VsmSpice *spice, NSString *path);
  * Enabled with VSM_SELFTEST=1. */
 void vsm_run_input_selftest(VsmView *view, NSWindow *window);
 
+/* Replays a synthetic cursor-channel script -- two shapes with different
+ * hotspots, then hide, then reset -- through @view's real cursor entry
+ * points.  Enabled with VSM_CURSOR_SELFTEST=1.  It exists because a guest
+ * that draws its pointer into the framebuffer never sends a cursor shape at
+ * all, and the AppKit half still has to be provable on such a target. */
+void vsm_run_cursor_selftest(VsmView *view);
+
 #endif /* VSM_DEBUG_H */

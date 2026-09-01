@@ -25,6 +25,7 @@ struct _VsmSpice {
     SpiceMainChannel   *main_channel;
     SpiceDisplayChannel *display;
     SpiceInputsChannel *inputs;
+    SpiceCursorChannel *cursor;
     guint8             *fb;        /* guest primary surface buffer */
     int                 fb_stride;
     int                 fb_width;
@@ -213,6 +214,79 @@ static void on_invalidate(SpiceDisplayChannel *channel G_GNUC_UNUSED,
     blit_damage(data, x, y, w, h);
 }
 
+/* ---------------------------------------------------------------- cursor */
+
+/* The cursor channel hands us a shape it still owns, from the GLib thread.
+ * Copy it here and let the main thread own the copy: by the time the block
+ * runs, spice-client-glib may already have replaced or freed the original.
+ * malloc() rather than g_malloc() because main.m free()s it and does not
+ * link against GLib's allocator vocabulary. */
+static void deliver_cursor_define(VsmSpice *self, int width, int height,
+                                  int hot_x, int hot_y, const guint8 *rgba)
+{
+    void (*define)(void *, int, int, int, int, const uint8_t *) = self->cb.cursor_define;
+    void *user = self->user;
+    size_t size;
+    uint8_t *copy;
+
+    if (!define || width <= 0 || height <= 0 || !rgba)
+        return;
+
+    size = (size_t)width * (size_t)height * 4;
+    copy = malloc(size);
+    if (!copy) {
+        notify_status(self, "out of memory for a %dx%d cursor shape", width, height);
+        return;
+    }
+    memcpy(copy, rgba, size);
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        define(user, width, height, hot_x, hot_y, copy);
+    });
+}
+
+/* notify::cursor rather than the ::cursor-set signal: the latter is
+ * deprecated since spice-gtk 0.34 and carries the same payload. */
+static void on_cursor_notify(GObject *object, GParamSpec *pspec G_GNUC_UNUSED,
+                             gpointer data)
+{
+    VsmSpice *self = data;
+    SpiceCursorShape *shape = NULL;
+
+    g_object_get(object, "cursor", &shape, NULL);
+    if (!shape)
+        return;
+    if (shape->data)
+        deliver_cursor_define(self, shape->width, shape->height,
+                              shape->hot_spot_x, shape->hot_spot_y,
+                              shape->data);
+    g_boxed_free(SPICE_TYPE_CURSOR_SHAPE, shape);
+}
+
+static void on_cursor_hide(SpiceCursorChannel *channel G_GNUC_UNUSED,
+                           gpointer data)
+{
+    VsmSpice *self = data;
+    void (*hide)(void *) = self->cb.cursor_hide;
+    void *user = self->user;
+
+    if (!hide)
+        return;
+    dispatch_async(dispatch_get_main_queue(), ^{ hide(user); });
+}
+
+static void on_cursor_reset(SpiceCursorChannel *channel G_GNUC_UNUSED,
+                            gpointer data)
+{
+    VsmSpice *self = data;
+    void (*reset)(void *) = self->cb.cursor_reset;
+    void *user = self->user;
+
+    if (!reset)
+        return;
+    dispatch_async(dispatch_get_main_queue(), ^{ reset(user); });
+}
+
 /* --------------------------------------------------------------- session */
 
 static void update_title(VsmSpice *self)
@@ -330,6 +404,21 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
         return;
     }
 
+    if (SPICE_IS_CURSOR_CHANNEL(channel)) {
+        if (id != 0)
+            return;                   /* only the primary display's cursor */
+        self->cursor = SPICE_CURSOR_CHANNEL(channel);
+        g_signal_connect(channel, "notify::cursor",
+                         G_CALLBACK(on_cursor_notify), self);
+        g_signal_connect(channel, "cursor-hide",
+                         G_CALLBACK(on_cursor_hide), self);
+        g_signal_connect(channel, "cursor-reset",
+                         G_CALLBACK(on_cursor_reset), self);
+        spice_channel_connect(channel);
+        notify_status(self, "cursor channel ready");
+        return;
+    }
+
     if (SPICE_IS_INPUTS_CHANNEL(channel)) {
         self->inputs = SPICE_INPUTS_CHANNEL(channel);
         spice_channel_connect(channel);
@@ -337,9 +426,9 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
         return;
     }
 
-    /* Everything else (cursor, cursor-less playback, record, usbredir,
-     * webdav, smartcard) is deliberately left unconnected: milestone 1 is
-     * screen + keyboard + mouse only. */
+    /* Everything else (playback, record, usbredir, webdav, smartcard) is
+     * deliberately left unconnected: this build is screen, keyboard, mouse
+     * and cursor shape only. */
 }
 
 static void on_channel_destroy(SpiceSession *session G_GNUC_UNUSED,
@@ -351,6 +440,8 @@ static void on_channel_destroy(SpiceSession *session G_GNUC_UNUSED,
         self->display = NULL;
     else if (SPICE_CHANNEL(self->inputs) == channel)
         self->inputs = NULL;
+    else if (SPICE_CHANNEL(self->cursor) == channel)
+        self->cursor = NULL;
     else if (SPICE_CHANNEL(self->main_channel) == channel)
         self->main_channel = NULL;
 }

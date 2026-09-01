@@ -20,6 +20,22 @@
 - (void)refreshSurface;
 /* Release every key the guest still thinks is held (focus loss, quit). */
 - (void)releaseAllKeys;
+
+/* Cursor channel.  @cursor is the guest's pointer shape, or nil to fall back
+ * to the system arrow; the shape applies only while the pointer is inside
+ * the view. */
+- (void)setGuestCursor:(NSCursor *)cursor;
+/* Show nothing over the guest area (guest hid its pointer). */
+- (void)hideGuestCursor;
+/* Forget the guest shape and go back to the system arrow. */
+- (void)resetGuestCursor;
 @end
+
+/* Build an NSCursor from @width x @height premultiplied RGBA bytes with the
+ * hotspot at @hot_x/@hot_y, exactly as the cursor channel delivers them.
+ * Shared with the debug helper so a synthetic shape takes the same path as a
+ * guest one.  Returns nil if the bitmap could not be allocated. */
+NSCursor *vsm_cursor_from_rgba(int width, int height, int hot_x, int hot_y,
+                               const uint8_t *rgba);
 
 #endif /* MAIN_VIEW_H */
