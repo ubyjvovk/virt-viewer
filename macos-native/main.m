@@ -58,6 +58,10 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     self = [super initWithFrame:frame];
     if (self) {
         _heldModifierKeyCodes = [NSMutableSet set];
+        /* Default ON: the guests this viewer is built for bind their window
+         * manager on SUPER, so Cmd has to reach them unless the user says
+         * otherwise (see -performKeyEquivalent:). */
+        _captureKeyboard = YES;
         self.wantsLayer = YES;
         self.layer.backgroundColor = NSColor.blackColor.CGColor;
         self.layer.contentsGravity = kCAGravityResizeAspect;
@@ -128,6 +132,46 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     [self sendKeyCode:event.keyCode down:NO];
 }
 
+/* AppKit offers every Cmd chord to the key window's view hierarchy before it
+ * reaches the main menu, so this is where keyboard capture is enforced: while
+ * it is on and a session is live, EVERY Cmd chord is consumed here and sent
+ * to the guest, and the app's own shortcuts (Cmd-Q, Cmd-0, ctrl-Cmd-F) stop
+ * working until capture is turned off from the menu with the mouse.  That is
+ * deliberate -- a guest bound on SUPER is unusable if the client keeps a
+ * handful of chords for itself.
+ *
+ * The Cmd key itself is not sent from here: it already reached the guest via
+ * flagsChanged: when it went down, and its release will arrive the same way.
+ * Only the non-modifier key of the chord needs a press/release pair, and it
+ * needs both, because a key equivalent never produces a matching keyUp. */
+- (BOOL)performKeyEquivalent:(NSEvent *)event
+{
+    if (!self.captureKeyboard || !self.spice)
+        return NO;
+    if (!self.window.isKeyWindow || self.window.firstResponder != self)
+        return NO;
+    if (!(event.modifierFlags & NSEventModifierFlagCommand))
+        return NO;
+
+    [self sendKeyCode:event.keyCode down:YES];
+    [self sendKeyCode:event.keyCode down:NO];
+    return YES;
+}
+
+- (void)sendChord:(NSArray<NSNumber *> *)scancodes
+{
+    for (NSNumber *code in scancodes) {
+        if (vsm_trace)
+            NSLog(@"chord press   xt=0x%04x", code.unsignedIntValue);
+        vsm_spice_send_key(self.spice, code.unsignedIntValue, 1);
+    }
+    for (NSNumber *code in scancodes.reverseObjectEnumerator) {
+        if (vsm_trace)
+            NSLog(@"chord release xt=0x%04x", code.unsignedIntValue);
+        vsm_spice_send_key(self.spice, code.unsignedIntValue, 0);
+    }
+}
+
 /* macOS never delivers keyDown/keyUp for modifiers; it delivers one
  * flagsChanged per physical transition.  Derive press vs release from the
  * device-dependent bit for that specific key, falling back to the generic
@@ -138,6 +182,12 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     unsigned short kc = event.keyCode;
     NSUInteger devBit = 0, genericBit = 0;
     BOOL down;
+
+    /* Cmd is the one modifier the toggle owns: with capture off the app keeps
+     * its shortcuts, and letting the bare Cmd press through anyway would
+     * still trip whatever the guest's window manager binds on SUPER. */
+    if (!self.captureKeyboard && (kc == VSM_KC_LCMD || kc == VSM_KC_RCMD))
+        return;
 
     switch (kc) {
     case VSM_KC_LSHIFT: devBit = VSM_DEV_LSHIFT; genericBit = NSEventModifierFlagShift;   break;
@@ -369,9 +419,11 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
  * callbacks other channels queue do not stack a second alert on top. */
 @property (nonatomic, assign) BOOL handlingDisconnect;
 @property (nonatomic, strong) id quitMonitor;
+@property (nonatomic, strong) NSMenuItem *captureItem;
 @property (nonatomic, strong) dispatch_source_t dumpSource;
 @property (nonatomic, assign) BOOL selftestDone;
 @property (nonatomic, assign) BOOL cursorSelftestDone;
+@property (nonatomic, assign) BOOL sendkeySelftestDone;
 @end
 
 /* The callback bodies are the C glue at the bottom of the file; the table has
@@ -397,20 +449,170 @@ static const VsmSpiceCallbacks vsm_callbacks = {
     .cursor_reset   = cb_cursor_reset,
 };
 
+/* XT (AT set 1) scancodes for the Send Key chords.  0x1xx is the 0xe0-
+ * prefixed extended form, the encoding spice_inputs_channel_key_press()
+ * expects and the one vsm-keymap.c already uses. */
+enum {
+    VSM_XT_LCTRL     = 0x01d,
+    VSM_XT_LSHIFT    = 0x02a,
+    VSM_XT_LALT      = 0x038,
+    VSM_XT_BACKSPACE = 0x00e,
+    VSM_XT_F11       = 0x057,
+    VSM_XT_DELETE    = 0x153,   /* e0 53, the editing-pad Delete */
+    VSM_XT_PRTSCR    = 0x137,   /* e0 37 */
+};
+
 @implementation VsmAppDelegate
+
+/* One Send Key entry: the chord it types lives in representedObject so every
+ * item shares -sendKeyChord: and therefore the exact same send path. */
+- (NSMenuItem *)sendKeyItem:(NSString *)title codes:(NSArray<NSNumber *> *)codes
+{
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title
+                                                  action:@selector(sendKeyChord:)
+                                           keyEquivalent:@""];
+    item.target = self;
+    item.representedObject = codes;
+    return item;
+}
 
 - (void)buildMenu
 {
     NSMenu *bar = [[NSMenu alloc] init];
     NSMenuItem *appItem = [[NSMenuItem alloc] init];
     NSMenu *appMenu = [[NSMenu alloc] init];
+    NSMenuItem *viewItem = [[NSMenuItem alloc] init];
+    NSMenu *viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
+    NSMenuItem *inputItem = [[NSMenuItem alloc] init];
+    NSMenu *inputMenu = [[NSMenu alloc] initWithTitle:@"Input"];
+    NSMenu *sendMenu = [[NSMenu alloc] initWithTitle:@"Send Key"];
+    NSMenuItem *item;
 
     [appMenu addItemWithTitle:@"Quit"
                        action:@selector(terminate:)
                 keyEquivalent:@"q"];
     appItem.submenu = appMenu;
     [bar addItem:appItem];
+
+    item = [viewMenu addItemWithTitle:@"Actual Size"
+                               action:@selector(actualSize:)
+                        keyEquivalent:@"0"];
+    item.target = self;
+    [viewMenu addItem:[NSMenuItem separatorItem]];
+    /* No target: toggleFullScreen: travels the responder chain to whichever
+     * window is key, and AppKit keeps this item's title in sync with that
+     * window's state ("Enter"/"Exit Full Screen") and disables it for windows
+     * that cannot go fullscreen. */
+    item = [viewMenu addItemWithTitle:@"Enter Full Screen"
+                               action:@selector(toggleFullScreen:)
+                        keyEquivalent:@"f"];
+    item.keyEquivalentModifierMask = NSEventModifierFlagControl |
+                                     NSEventModifierFlagCommand;
+    viewItem.submenu = viewMenu;
+    [bar addItem:viewItem];
+
+    self.captureItem = [inputMenu addItemWithTitle:@"Capture Keyboard"
+                                            action:@selector(toggleCaptureKeyboard:)
+                                     keyEquivalent:@""];
+    self.captureItem.target = self;
+    [inputMenu addItem:[NSMenuItem separatorItem]];
+
+    /* Chords the guest needs and AppKit or macOS would otherwise eat, each
+     * spelled out as the scancodes a human would press. */
+    [sendMenu addItem:[self sendKeyItem:@"Ctrl+Alt+Del"
+                                  codes:@[@(VSM_XT_LCTRL), @(VSM_XT_LALT),
+                                          @(VSM_XT_DELETE)]]];
+    [sendMenu addItem:[self sendKeyItem:@"Ctrl+Alt+Backspace"
+                                  codes:@[@(VSM_XT_LCTRL), @(VSM_XT_LALT),
+                                          @(VSM_XT_BACKSPACE)]]];
+    [sendMenu addItem:[self sendKeyItem:@"PrintScreen"
+                                  codes:@[@(VSM_XT_PRTSCR)]]];
+    [sendMenu addItem:[self sendKeyItem:@"F11" codes:@[@(VSM_XT_F11)]]];
+    item = [inputMenu addItemWithTitle:@"Send Key" action:NULL keyEquivalent:@""];
+    item.submenu = sendMenu;
+    inputItem.submenu = inputMenu;
+    [bar addItem:inputItem];
+
     NSApp.mainMenu = bar;
+}
+
+/* Targets are set explicitly above, so this is only asked about our own
+ * actions; toggleFullScreen: is validated by the window itself. */
+- (BOOL)validateMenuItem:(NSMenuItem *)item
+{
+    SEL action = item.action;
+
+    if (action == @selector(toggleCaptureKeyboard:)) {
+        item.state = self.view.captureKeyboard ? NSControlStateValueOn
+                                               : NSControlStateValueOff;
+        return YES;
+    }
+    if (action == @selector(sendKeyChord:))
+        return self.spice != NULL;
+    if (action == @selector(actualSize:))
+        return self.spice != NULL && ![self isFullScreen];
+    return YES;
+}
+
+- (BOOL)isFullScreen
+{
+    return (self.window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+}
+
+/* --------------------------------------------------------- menu actions */
+
+- (void)toggleCaptureKeyboard:(id)sender
+{
+    self.view.captureKeyboard = !self.view.captureKeyboard;
+    /* Turning capture off mid-chord would otherwise leave whatever modifier
+     * is physically down stuck down in the guest. */
+    if (!self.view.captureKeyboard)
+        [self.view releaseAllKeys];
+    NSLog(@"keyboard capture %s", self.view.captureKeyboard ? "on" : "off");
+}
+
+- (void)sendKeyChord:(NSMenuItem *)item
+{
+    NSLog(@"send key: %@", item.title);
+    [self.view sendChord:item.representedObject];
+}
+
+/* One guest pixel per physical display pixel: on a 2x Retina panel the window
+ * is half as many points wide as the guest is pixels, and the compositor does
+ * no resampling.  This is the size the window is given on connect, and the
+ * size the View menu restores. */
+- (void)resizeToGuestPixels
+{
+    CGFloat scale = self.window.backingScaleFactor ?: 1.0;
+
+    if (self.view.guestWidth <= 0 || self.view.guestHeight <= 0)
+        return;
+    [self.window setContentSize:NSMakeSize(self.view.guestWidth / scale,
+                                           self.view.guestHeight / scale)];
+}
+
+/* Log what the window currently occupies.  The second rect is in the
+ * top-left-origin space screencapture(1) takes for -R, so a QA run can grab
+ * exactly this window (and nothing else on the desktop) from the log. */
+- (void)logWindowGeometry:(NSString *)what
+{
+    NSRect frame = self.window.frame;
+    NSRect content = [self.window contentRectForFrameRect:frame];
+    CGFloat screenHeight = NSScreen.screens.firstObject.frame.size.height;
+
+    NSLog(@"%@: content %.0fx%.0f pt, guest %dx%d, backing scale %.1f, "
+          @"fullscreen %@, screencapture -R %.0f,%.0f,%.0f,%.0f",
+          what, content.size.width, content.size.height,
+          self.view.guestWidth, self.view.guestHeight,
+          self.window.backingScaleFactor, [self isFullScreen] ? @"yes" : @"no",
+          frame.origin.x, screenHeight - NSMaxY(frame),
+          frame.size.width, frame.size.height);
+}
+
+- (void)actualSize:(id)sender
+{
+    [self resizeToGuestPixels];
+    [self logWindowGeometry:@"actual size"];
 }
 
 /* AppKit disables the main menu for the duration of a modal session, so the
@@ -420,9 +622,21 @@ static const VsmSpiceCallbacks vsm_callbacks = {
  * as well as the normal one, so Cmd-Q means quit in every state. */
 - (void)installQuitMonitor
 {
+    __weak VsmAppDelegate *weakSelf = self;
+
     self.quitMonitor = [NSEvent
         addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
                                      handler:^NSEvent *(NSEvent *event) {
+        VsmAppDelegate *self = weakSelf;
+
+        /* A local monitor sees the event before the responder chain does, so
+         * without this it would beat -[VsmView performKeyEquivalent:] to
+         * Cmd-Q and the guest would never get it.  Capture only claims the
+         * chord while a session is on screen, which is exactly when no modal
+         * dialog is up -- so the escape hatch this monitor exists for is
+         * untouched. */
+        if (self.view.captureKeyboard && self.spice && self.window.isKeyWindow)
+            return event;
         if ((event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask)
                 == NSEventModifierFlagCommand &&
             [event.charactersIgnoringModifiers isEqualToString:@"q"]) {
@@ -562,6 +776,11 @@ static const VsmSpiceCallbacks vsm_callbacks = {
     self.window.delegate = self;
     self.window.acceptsMouseMovedEvents = YES;
     self.window.releasedWhenClosed = NO;
+    /* Native macOS fullscreen (its own Space, ctrl-Cmd-F, the green button).
+     * The window background matches the view's so the bars either side of an
+     * aspect-fitted guest image are black rather than window grey. */
+    self.window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
+    self.window.backgroundColor = NSColor.blackColor;
 
     self.view = [[VsmView alloc] initWithFrame:frame];
     self.view.spice = self.spice;
@@ -594,11 +813,7 @@ static const VsmSpiceCallbacks vsm_callbacks = {
         }
         path = [dir stringByAppendingPathComponent:
                           [NSString stringWithFormat:@"frame-%d.png", ++seq]];
-        NSRect content = [self.window contentRectForFrameRect:self.window.frame];
-        NSLog(@"window: title=\"%@\" content=%.0fx%.0f pt, backing scale %.1f, "
-              @"layer contentsScale %.1f",
-              self.window.title, content.size.width, content.size.height,
-              self.window.backingScaleFactor, self.view.layer.contentsScale);
+        [self logWindowGeometry:@"window"];
         vsm_dump_surface(self.spice, path);
     });
     dispatch_resume(src);
@@ -606,19 +821,68 @@ static const VsmSpiceCallbacks vsm_callbacks = {
     NSLog(@"SIGUSR1 will dump frames to %@", dir);
 }
 
+/* Lock the window's proportions to the guest's, so a user drag cannot letter-
+ * box the image.  Not while fullscreen: an aspect-ratio constraint and a
+ * screen-sized frame contradict each other, and -windowDidExitFullScreen:
+ * puts the constraint back afterwards. */
+- (void)applyGuestAspectRatio
+{
+    if (self.view.guestWidth <= 0 || self.view.guestHeight <= 0 ||
+        [self isFullScreen])
+        return;
+    self.window.contentAspectRatio = NSMakeSize(self.view.guestWidth,
+                                                self.view.guestHeight);
+}
+
+- (void)windowWillEnterFullScreen:(NSNotification *)note
+{
+    if (note.object != self.window)
+        return;
+    /* Setting resize increments is the documented way to drop an aspect-ratio
+     * constraint; leaving it in place makes AppKit refuse to grow the window
+     * to the full screen.  The guest image stays proportional anyway -- the
+     * layer's kCAGravityResizeAspect letterboxes it against the black view. */
+    self.window.resizeIncrements = NSMakeSize(1, 1);
+}
+
+- (void)windowDidEnterFullScreen:(NSNotification *)note
+{
+    if (note.object != self.window)
+        return;
+    [self logWindowGeometry:@"entered fullscreen"];
+}
+
+- (void)windowDidExitFullScreen:(NSNotification *)note
+{
+    if (note.object != self.window)
+        return;
+    [self applyGuestAspectRatio];
+    [self logWindowGeometry:@"left fullscreen"];
+}
+
+/* A guest changes video mode by destroying and recreating its primary
+ * surface, so this runs again mid-session with new dimensions: everything
+ * derived from the old size -- the IOSurface the layer samples, the
+ * aspect-ratio lock, the window size -- has to be recomputed here. */
 - (void)primaryCreatedWidth:(int)width height:(int)height
 {
     CGFloat scale = self.window.backingScaleFactor ?: 1.0;
+    BOOL modeChange = (self.view.guestWidth > 0 &&
+                       (width != self.view.guestWidth ||
+                        height != self.view.guestHeight));
 
     self.view.guestWidth = width;
     self.view.guestHeight = height;
-    /* One guest pixel per physical display pixel: on a 2x Retina panel the
-     * window is half as many points wide as the guest is pixels, and the
-     * compositor does no resampling. */
-    [self.window setContentSize:NSMakeSize(width / scale, height / scale)];
-    self.window.contentAspectRatio = NSMakeSize(width, height);
+    /* In fullscreen the frame belongs to the screen, so only the letterboxing
+     * changes and the layer's aspect-fit gravity has already done that. */
+    if (![self isFullScreen]) {
+        [self resizeToGuestPixels];
+        [self applyGuestAspectRatio];
+    }
     [self.view refreshSurface];
-    NSLog(@"primary surface %dx%d (backing scale %.1f)", width, height, scale);
+    NSLog(@"primary surface %dx%d (backing scale %.1f)%s%s", width, height, scale,
+          modeChange ? " [guest resolution change]" : "",
+          [self isFullScreen] ? " [fullscreen: refit only]" : "");
 
     if (!self.cursorSelftestDone &&
         NSProcessInfo.processInfo.environment[@"VSM_CURSOR_SELFTEST"]) {
@@ -626,6 +890,15 @@ static const VsmSpiceCallbacks vsm_callbacks = {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                        dispatch_get_main_queue(), ^{
             vsm_run_cursor_selftest(self.view);
+        });
+    }
+
+    if (!self.sendkeySelftestDone &&
+        NSProcessInfo.processInfo.environment[@"VSM_SENDKEY_SELFTEST"]) {
+        self.sendkeySelftestDone = YES;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+            vsm_run_sendkey_selftest(self.view);
         });
     }
 

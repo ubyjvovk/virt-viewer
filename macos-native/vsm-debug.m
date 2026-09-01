@@ -240,3 +240,14 @@ void vsm_run_cursor_selftest(VsmView *view)
         });
     });
 }
+
+/* ------------------------------------------------------ send-key selftest */
+
+void vsm_run_sendkey_selftest(VsmView *view)
+{
+    /* XT scancodes: 0x2a = LeftShift, 0x57 = F11.  Two keys is the smallest
+     * chord that shows the press order and the reversed release order. */
+    NSLog(@"sendkey-selftest: Shift+F11");
+    [view sendChord:@[@0x2a, @0x57]];
+    NSLog(@"sendkey-selftest: end");
+}

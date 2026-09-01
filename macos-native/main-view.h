@@ -15,11 +15,21 @@
 @property (nonatomic, assign) VsmSpice *spice;
 @property (nonatomic, assign) int guestWidth;
 @property (nonatomic, assign) int guestHeight;
+/* While YES (the default) and a session is connected and this view is the
+ * key window's first responder, every Cmd chord is swallowed by
+ * -performKeyEquivalent: and forwarded to the guest as scancodes instead of
+ * being handled by the app -- Cmd-Q included.  The Input menu toggles it. */
+@property (nonatomic, assign) BOOL captureKeyboard;
 
 /* Rebind the layer to the current IOSurface so CA re-reads its bytes. */
 - (void)refreshSurface;
 /* Release every key the guest still thinks is held (focus loss, quit). */
 - (void)releaseAllKeys;
+/* Send @scancodes (XT/AT set 1, 0x1xx for the 0xe0-prefixed extended keys)
+ * as one chord: every code pressed in order, then released in reverse order,
+ * which is what a human pressing the same combination produces.  Used by the
+ * Send Key menu and by the send-key selftest. */
+- (void)sendChord:(NSArray<NSNumber *> *)scancodes;
 
 /* Cursor channel.  @cursor is the guest's pointer shape, or nil to fall back
  * to the system arrow; the shape applies only while the pointer is inside
