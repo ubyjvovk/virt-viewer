@@ -1,13 +1,21 @@
 # Tiger Team state
 
 ## Mission
-Native macOS port of virt-viewer/remote-viewer on branch `mac-port`, to be
-opened as an upstream PR. Done = (1) documented Homebrew build, (2)
-`build-aux/macos/make-bundle.sh` produces a relocatable, ad-hoc-signed
-`Remote Viewer.app` that launches, (3) `spice://`/`vnc://` URLs and `.vv`
-files open the app, (4) macOS menu bar / Cmd shortcuts / bundle-relative
-resources work, (5) GitHub Actions macOS CI green, (6) all changes
-platform-guarded so Linux/Windows are untouched.
+Two tracks on branch `mac-port` (board branch; never pushed anywhere):
+1. **GTK upstream port — COMPLETE, parked at the push gate.** The 8-commit
+   series `mac-port-pr` (tip c33a0c6; content-identical to mac-port on all
+   product paths) is built, 3-way stress-reviewed, fix-folded, tests green.
+   It awaits ONLY user decisions: strip Claude-Session trailers + add the
+   user's Signed-off-by (DCO), then GitLab fork + MR to
+   virt-viewer/virt-viewer. GTK window-management BUG-FIXING is abandoned
+   (user pivot 2026-09-01); those defects are documented in docs/macos.md
+   "Known issues" + tests/test-macos-window-state.c.
+2. **Native macOS SPICE viewer — the PRIMARY track.** `macos-native/`:
+   spice-glib + IOSurface/CALayer + keycodemapdb, zero GTK. Milestone 1
+   (screen / keyboard / absolute mouse, 1655 LoC) ACCEPTED and
+   user-verified live 2026-09-01. Next milestones unticketed: cursor
+   channel (best value/line), relative mouse, clipboard, multi-display,
+   dialogs (~2500 LoC total per T-0022's gap list).
 
 ## Configuration notes
 - Branch: `mac-port` (root checkout). Single-branch mode: accepts merge here.
@@ -120,6 +128,11 @@ platform-guarded so Linux/Windows are untouched.
   this 3-line edit directly (hdiutil is unusable in sandboxed lanes).
 
 ## Board snapshot
+- 2026-09-01 — **21/21 done, drained.** Waves: GTK port T-0001..T-0010; PR
+  assembly T-0011; stress reviews T-0012..14; fix wave T-0015..19;
+  window-mgmt QA T-0020 (docs+test only, no fixes per pivot); native PoC
+  T-0022. T-0021 parked in drafts/ (superseded). Lifetime ≈ $48.5 + $7.5
+  reported (codex/grok/ds lanes report no cost).
 - 2026-08-30 16:20 — **BOARD DRAINED: 10/10 accepted** (T-0001..T-0010).
   T-0009 QA re-run on the final tree: PASS (native menu bar, native title
   bars on dialogs, connection-error dialog instead of crash, ⌘Q quits,
@@ -242,17 +255,24 @@ platform-guarded so Linux/Windows are untouched.
   mouse mode, clipboard, multi-display (only structural refactor), dialogs.
 
 ## Next actions
-- Waiting on the user (all local until then; NOTHING pushed):
-  1. Commit-trailer decision: strip Claude-Session and add the user's own
-     Signed-off-by (DCO universal upstream) — one rebase, PM does it on go.
-  2. Approval to create/push a GitLab fork and open the MR against
-     virt-viewer/virt-viewer (MR text should disclose: meta/Super
-     cross-platform behavior + latent win+X fix; GH Actions workflow optional;
-     in-tree formula rationale).
-  3. Optional: personal tap / GitHub release DMG (separate approval).
-- Follow-up candidates (P3, not ticketed): T-0016 reviewer notes (bundle-id
-  drift between plist and launcher cache dir; config.h staleness vs meson
-  introspect), plus the earlier 15:58 list a–e and immodules locale paths.
+- Board is drained; nothing is running. On restart: `tigerteam status`,
+  `tigerteam up` when new tickets exist, arm ONE `tigerteam events --wait`
+  (pull mode). The retro lives at repo root `retro-tigerteam-mac-port.md`
+  (untracked, user request — do not commit).
+- **Native milestone 2** when the user asks: ticket cursor channel first
+  (best value/line), then relative/server mouse; C3, `capability:
+  [macbuild]`, engine ceiling ≈45 min so mandate commit-early + INCOMPLETE
+  relay. Target VM: spice://100.101.77.113:5900 (user's disposable Omarchy
+  guest, "feel free"; unlock pw in root `.env` as `T0022_GUEST_UNLOCK_PW`,
+  never in tickets). Read T-0022's report (done/) before scoping.
+- Standing user decisions for the GTK MR (all local until given):
+  (a) strip Claude-Session trailers + add user's Signed-off-by (one rebase);
+  (b) GitLab fork/push/MR approval — MR text must disclose meta/Super
+  cross-platform behavior + latent win+X fix, offer the GH Actions workflow
+  as optional, explain the in-tree formula; (c) optional tap / release DMG.
+- Someday: report the spice-gtk global-default-GMainContext scheduling
+  finding upstream (T-0022 report); P3 follow-up pile (T-0016 reviewer
+  notes, 2026-08-30 15:58 list a–e, immodules locale paths).
 
 ## How to resume
 1. Read this file. 2. `tigerteam status`. 3. review/ then blocked/.

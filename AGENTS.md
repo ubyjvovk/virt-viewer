@@ -6,12 +6,22 @@
 ## What this project is
 virt-viewer / remote-viewer: a GTK3 (C, GLib/GObject) client for SPICE and
 VNC displays of virtual machines (upstream: gitlab.com/virt-viewer/virt-viewer).
-This branch (`mac-port`) makes it a first-class **native macOS** application:
-builds against Homebrew libraries, ships as a `.app` bundle, integrates with
-macOS (menu bar, Cmd shortcuts, URL/`.vv` file handlers). The end product is a
-pull request against upstream `master`, so every change must be
-platform-guarded (`#ifdef __APPLE__` in C, `host_machine.system() == 'darwin'`
-in meson) and must not alter Linux/Windows behaviour.
+This branch (`mac-port`) carries TWO tracks:
+
+1. **GTK macOS port (COMPLETE — maintenance only).** Builds against Homebrew
+   libraries, ships as a `.app` bundle, integrates with macOS (menu bar, Cmd
+   shortcuts, URL/`.vv` handlers). Assembled as an upstream merge-request
+   series on branch `mac-port-pr`; every change here must be platform-guarded
+   (`#ifdef __APPLE__` in C, `host_machine.system() == 'darwin'` in meson)
+   and must not alter Linux/Windows behaviour. GTK window-management bug
+   FIXING is abandoned by user decision (2026-09-01) — those defects are
+   documented in docs/macos.md "Known issues"; do not fix them.
+
+2. **Native macOS SPICE viewer (`macos-native/`) — the ACTIVE track.** A
+   from-scratch Cocoa client over spice-client-glib: IOSurface/CALayer
+   rendering, keycodemapdb-generated osx→xtkbd keyboard, absolute mouse.
+   Zero GTK; standalone build, deliberately OUTSIDE the meson tree. Read
+   `macos-native/README.md` before touching it.
 
 ## Layout
 - `meson.build`, `meson_options.txt` — top-level build; per-dir `meson.build`
@@ -25,6 +35,11 @@ in meson) and must not alter Linux/Windows behaviour.
 - `data/` — desktop/mime/appdata (Linux-only install), `icons/` — app icons
 - `man/` — POD man pages, `docs/` — project docs (put `docs/macos.md` here)
 - `ci/` — upstream GitLab CI (lcitool-generated; do NOT hand-edit `ci/`)
+- `macos-native/` — the native viewer: `vsm-spice.c` (GLib-thread SPICE
+  session, damage→IOSurface blit, cross-thread input marshalling), `main.m`
+  (NSApplication, window, `VsmView` responder methods), `vsm-keymap.c`
+  (generated osx→xtkbd table), `vsm-debug.m` (frame dump + input self-test),
+  `build.sh`, `README.md`
 - `.tigerteam/` — ticket board; not part of the product
 
 ## Conventions
@@ -40,6 +55,11 @@ in meson) and must not alter Linux/Windows behaviour.
 - Shell scripts: `#!/usr/bin/env bash`, `set -euo pipefail`, run from any cwd.
 - Docs live in `docs/macos.md`; keep the man pages (`man/*.pod`) in sync when
   CLI behaviour changes.
+- `macos-native/`: Objective-C with ARC, `-Wall -Wextra -Werror`, C for the
+  SPICE/GLib layer. AppKit only on the main thread; all spice-glib calls on
+  the GLib thread; marshal between them (dispatch_async up,
+  g_main_context_invoke-style down). No GTK includes, no meson — build only
+  via `bash macos-native/build.sh`.
 
 ## Config
 - Project config is root `tigerteam.toml` (optional `~/.tigerteam.toml` for
@@ -53,6 +73,9 @@ in meson) and must not alter Linux/Windows behaviour.
   log path is printed; grep it, never cat it whole.
 - Direct build (same thing): `bash build-aux/macos/check.sh`
 - Binaries after build: `build/src/remote-viewer`, `build/src/virt-viewer`
+- Native viewer: `bash macos-native/build.sh` →
+  `macos-native/build/spice-viewer <spice://host:port>` (run-tests.sh does
+  NOT cover it; it must still exit 0 to prove the meson tree is untouched)
 - Homebrew deps are already installed on this host: meson ninja pkgconf gtk+3
   gtk-vnc spice-gtk spice-protocol libvirt libvirt-glib vte3 libxml2
   gettext adwaita-icon-theme gtk-mac-integration dylibbundler.
@@ -72,6 +95,18 @@ in meson) and must not alter Linux/Windows behaviour.
   they are auto-disabled — do not try to enable them.
 - `build/` is gitignored; put QA screenshots/reports under `build/qa/`
   (preserved as artifacts by the board).
+- **spice-glib context gotcha:** its coroutines self-schedule with
+  `g_idle_add`/`g_timeout_add_full` — the GLOBAL default GMainContext — so a
+  private per-thread GMainContext silently stalls the session after the main
+  channel appears. Run the DEFAULT context's loop on the dedicated GLib
+  thread instead (macos-native/vsm-spice.c shows the pattern).
+- Live test target for native tickets: the ticket names the URI (a
+  disposable user VM — treat with care: no destructive/power key sequences).
+  If a guest unlock password is needed, the ticket will point at a root
+  `.env` variable; use the value as typed input only, never echo it into
+  reports, logs, or commits.
+- The engine wall-clock ceiling is ≈45 min: commit early and often; hand
+  off INCOMPLETE with precise next steps rather than pushing through.
 - **Never `pkill -f <pattern>`.** Sibling workers' and the PM's command lines
   contain the same paths and app names (`build/src/remote-viewer`,
   `Remote Viewer.app`), so a pattern kill takes them down too (incident
