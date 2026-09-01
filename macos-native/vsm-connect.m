@@ -139,10 +139,15 @@ VsmDisconnectChoice vsm_prompt_disconnect(NSString *uri, const char *reason)
     NSAlert *alert = [[NSAlert alloc] init];
 
     alert.alertStyle = NSAlertStyleWarning;
+    /* Set explicitly: NSAlert badges the application icon, and a bare
+     * (un-bundled) binary has none, so the default is a generic folder. */
+    alert.icon = [NSImage imageNamed:NSImageNameCaution];
     alert.messageText = [NSString stringWithFormat:@"Disconnected from %@", uri];
     alert.informativeText = @(reason ?: "the connection ended");
     [alert addButtonWithTitle:@"Reconnect"];
-    [alert addButtonWithTitle:@"Close"];
+    /* Escape dismisses the alert the safe way -- NSAlert only wires Escape up
+     * for a button literally titled "Cancel". */
+    [alert addButtonWithTitle:@"Close"].keyEquivalent = @"\033";
 
     return [alert runModal] == NSAlertFirstButtonReturn
         ? VSM_DISCONNECT_RECONNECT : VSM_DISCONNECT_CLOSE;

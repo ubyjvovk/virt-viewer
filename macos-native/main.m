@@ -368,6 +368,7 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 /* Set while a modal disconnect/auth dialog is up, so the extra disconnect
  * callbacks other channels queue do not stack a second alert on top. */
 @property (nonatomic, assign) BOOL handlingDisconnect;
+@property (nonatomic, strong) id quitMonitor;
 @property (nonatomic, strong) dispatch_source_t dumpSource;
 @property (nonatomic, assign) BOOL selftestDone;
 @property (nonatomic, assign) BOOL cursorSelftestDone;
@@ -412,9 +413,30 @@ static const VsmSpiceCallbacks vsm_callbacks = {
     NSApp.mainMenu = bar;
 }
 
+/* AppKit disables the main menu for the duration of a modal session, so the
+ * Quit item alone would leave the user stuck behind the password prompt or
+ * the disconnect alert with no way out but the Dock.  A local key monitor
+ * sees the event before it reaches the responder chain, in the modal run loop
+ * as well as the normal one, so Cmd-Q means quit in every state. */
+- (void)installQuitMonitor
+{
+    self.quitMonitor = [NSEvent
+        addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                     handler:^NSEvent *(NSEvent *event) {
+        if ((event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask)
+                == NSEventModifierFlagCommand &&
+            [event.charactersIgnoringModifiers isEqualToString:@"q"]) {
+            [NSApp terminate:nil];
+            return nil;
+        }
+        return event;
+    }];
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
     [self buildMenu];
+    [self installQuitMonitor];
     [self installDumpSignalHandler];
 
     /* A URI on argv means "connect to this now", exactly as before the
