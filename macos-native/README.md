@@ -587,6 +587,18 @@ spice-client-glib (`GSpice-CRITICAL agent_clipboard_grab`). A guest that never
 brings an agent up says nothing at all, so a one-shot 1.5 s probe after the
 main channel opens reports the state either way.
 
+**A present agent is not a working one.** An agent can speak the protocol
+correctly and still be wired to nothing: it answers our offer with a request,
+takes the bytes, and never installs them as the guest's selection — and it
+never announces the guest's own copies back to us. Seen on a Hyprland
+(Wayland) guest, where `wl-copy`/`wl-paste` act on the Wayland selection while
+upstream `spice-vdagent`'s clipboard backend is X11 and the service comes up
+without a `DISPLAY`. The symptom to recognise is a trace that looks perfect —
+`offering text to guest`, `guest requested UTF8 text`, `host -> guest, N bytes`
+— while `wl-paste` in the guest still shows the old value and no guest grab
+ever arrives. Nothing on the client side can fix that; the fix is in the
+guest's agent setup.
+
 **Host → guest is polled**, because AppKit posts no notification for a
 pasteboard this process does not own. `NSPasteboard.general.changeCount` is
 read once a second — but only while all three of "a session exists", "an agent
