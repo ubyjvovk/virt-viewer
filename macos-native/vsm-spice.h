@@ -30,7 +30,11 @@ typedef struct {
     /* Human-readable status/title updates and terminal disconnection. */
     void (*title)(void *user, const char *title);
     void (*status)(void *user, const char *status);
-    void (*disconnected)(void *user, const char *reason);
+    /* The session went down and will not come back on its own.  @reason is a
+     * short human-readable phrase; @auth_failed is 1 when the server rejected
+     * the credentials (SPICE_CHANNEL_ERROR_AUTH), which is the one failure a
+     * password prompt can fix, and 0 for every other cause. */
+    void (*disconnected)(void *user, const char *reason, int auth_failed);
 
     /* Cursor channel.  The guest defined a new pointer shape: @width x
      * @height pixels of non-planar RGBA (byte order R,G,B,A; alpha is
@@ -49,10 +53,21 @@ typedef struct {
 /* Lifecycle.  vsm_spice_new() does not touch the network; vsm_spice_start()
  * spawns the GLib thread and begins connecting. */
 VsmSpice *vsm_spice_new(const char *uri, const VsmSpiceCallbacks *cb, void *user);
+/* Credentials for the next vsm_spice_start().  Must be called BEFORE start:
+ * the string is copied here and applied to the session's "password" property
+ * on the GLib thread, so there is no cross-thread access to it.  A retry after
+ * SPICE_CHANNEL_ERROR_AUTH is a fresh new/set_password/start cycle, not a
+ * mutation of the running session.  The copy is wiped before it is released;
+ * it is never logged, traced or persisted. */
+void      vsm_spice_set_password(VsmSpice *self, const char *password);
 void      vsm_spice_start(VsmSpice *self);
 /* Releases every held key, disconnects the session and joins the thread.
  * Safe to call twice; must be called from the main thread. */
 void      vsm_spice_stop(VsmSpice *self);
+/* Stops the session and releases it.  The release itself is deferred to the
+ * main queue, because callbacks already dispatched from the GLib thread still
+ * hold @self and must run first; @self must not be touched after this call.
+ * Must be called from the main thread. */
 void      vsm_spice_free(VsmSpice *self);
 
 /* Retained IOSurface holding the guest framebuffer, or NULL before the
@@ -60,7 +75,9 @@ void      vsm_spice_free(VsmSpice *self);
 IOSurfaceRef vsm_spice_copy_surface(VsmSpice *self);
 
 /* Input.  @scancode is an XT (AT set 1) code, 0xe0-prefixed for extended
- * keys, exactly as spice_inputs_channel_key_press() expects. */
+ * keys, exactly as spice_inputs_channel_key_press() expects.  Every entry
+ * point below (and vsm_spice_copy_surface) tolerates a NULL @self, so a view
+ * whose session has been torn down can keep handling events harmlessly. */
 void vsm_spice_send_key(VsmSpice *self, unsigned scancode, int down);
 void vsm_spice_release_all_keys(VsmSpice *self);
 void vsm_spice_send_position(VsmSpice *self, int x, int y, int button_state);

@@ -8,12 +8,15 @@
  * display pixels (contentsScale = backingScaleFactor), so a Retina screen
  * shows the guest framebuffer with no interpolation at all.
  *
- * Usage: viewer spice://host:port
+ * Usage: viewer [spice://host:port].  With a URI the viewer connects to it
+ * straight away; with no arguments it opens the connect window instead (see
+ * vsm-connect.m) and the session state machine below drives the rest.
  */
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 
 #include "main-view.h"
+#include "vsm-connect.h"
 #include "vsm-debug.h"
 #include "vsm-keymap.h"
 #include "vsm-spice.h"
@@ -358,10 +361,40 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 @property (nonatomic, strong) VsmView *view;
 @property (nonatomic, assign) VsmSpice *spice;
 @property (nonatomic, copy)   NSString *uri;
+/* The password typed into the auth prompt during THIS run, reused for
+ * reconnects.  Process memory only: never written to defaults or logged. */
+@property (nonatomic, copy)   NSString *password;
+@property (nonatomic, strong) VsmConnectWindowController *connectWindow;
+/* Set while a modal disconnect/auth dialog is up, so the extra disconnect
+ * callbacks other channels queue do not stack a second alert on top. */
+@property (nonatomic, assign) BOOL handlingDisconnect;
 @property (nonatomic, strong) dispatch_source_t dumpSource;
 @property (nonatomic, assign) BOOL selftestDone;
 @property (nonatomic, assign) BOOL cursorSelftestDone;
 @end
+
+/* The callback bodies are the C glue at the bottom of the file; the table has
+ * to exist up here because -connect installs it on every new session. */
+static void cb_primary_create(void *user, int width, int height);
+static void cb_damaged(void *user, int x, int y, int w, int h);
+static void cb_title(void *user, const char *title);
+static void cb_status(void *user, const char *status);
+static void cb_disconnected(void *user, const char *reason, int auth_failed);
+static void cb_cursor_define(void *user, int width, int height,
+                             int hot_x, int hot_y, const uint8_t *rgba);
+static void cb_cursor_hide(void *user);
+static void cb_cursor_reset(void *user);
+
+static const VsmSpiceCallbacks vsm_callbacks = {
+    .primary_create = cb_primary_create,
+    .damaged        = cb_damaged,
+    .title          = cb_title,
+    .status         = cb_status,
+    .disconnected   = cb_disconnected,
+    .cursor_define  = cb_cursor_define,
+    .cursor_hide    = cb_cursor_hide,
+    .cursor_reset   = cb_cursor_reset,
+};
 
 @implementation VsmAppDelegate
 
@@ -381,9 +414,122 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
-    NSRect frame = NSMakeRect(0, 0, 800, 600);
-
     [self buildMenu];
+    [self installDumpSignalHandler];
+
+    /* A URI on argv means "connect to this now", exactly as before the
+     * connect window existed; without one the user is asked. */
+    if (self.uri)
+        [self connect];
+    else
+        [self showConnectWindow];
+}
+
+/* ------------------------------------------------------------ session state
+ *
+ * The app has three states and moves between them only here:
+ *
+ *   connect window  --Connect-->  connected  --disconnect--> modal alert
+ *          ^                          ^                          |
+ *          +------- Close ------------+------ Reconnect ---------+
+ *
+ * A session is never reused: reconnecting (and retrying with a password)
+ * tears the VsmSpice down and builds a fresh one, which is also what
+ * spice-client-glib expects -- a SpiceSession that has errored out is done.
+ */
+
+- (void)showConnectWindow
+{
+    if (!self.connectWindow) {
+        __weak VsmAppDelegate *weakSelf = self;
+        self.connectWindow = [[VsmConnectWindowController alloc]
+            initWithHandler:^(NSString *uri) { [weakSelf connectToURI:uri]; }];
+    }
+    [self.connectWindow showWithURI:self.uri];
+}
+
+- (void)connectToURI:(NSString *)uri
+{
+    /* Remember the URI, never the password. */
+    [NSUserDefaults.standardUserDefaults setObject:uri forKey:VsmLastURIKey];
+    self.uri = uri;
+    [self.connectWindow hide];
+    [self connect];
+}
+
+/* Build the session for self.uri and put the viewer window on screen. */
+- (void)connect
+{
+    if (!self.window)
+        [self createViewerWindow];
+    self.window.title = self.uri;
+
+    self.spice = vsm_spice_new(self.uri.UTF8String, &vsm_callbacks,
+                               (__bridge void *)self);
+    if (self.password)
+        vsm_spice_set_password(self.spice, self.password.UTF8String);
+    self.view.spice = self.spice;
+
+    [self.window makeKeyAndOrderFront:nil];
+    [self.window makeFirstResponder:self.view];
+    [NSApp activateIgnoringOtherApps:YES];
+
+    vsm_spice_start(self.spice);
+}
+
+/* Release the guest's keys, stop the GLib thread and drop the session.  Safe
+ * with no session; leaves the viewer window alone. */
+- (void)teardownSession
+{
+    VsmSpice *spice = self.spice;
+
+    if (!spice)
+        return;
+    [self.view releaseAllKeys];
+    self.spice = NULL;
+    self.view.spice = NULL;
+    vsm_spice_stop(spice);
+    vsm_spice_free(spice);
+}
+
+/* The session ended.  Tear it down BEFORE any dialog goes up: a modal run
+ * loop pumps the main queue, so leaving a dead session's callbacks live
+ * behind an alert would let them run against a half-torn-down view. */
+- (void)disconnectedWithReason:(const char *)reason authFailed:(BOOL)authFailed
+{
+    VsmDisconnectChoice choice;
+
+    if (!self.spice || self.handlingDisconnect)
+        return;                       /* a sibling channel already reported */
+    self.handlingDisconnect = YES;
+    [self teardownSession];
+    [self.window orderOut:nil];
+
+    if (authFailed) {
+        NSString *password = vsm_prompt_password(self.uri);
+        self.handlingDisconnect = NO;
+        if (!password) {
+            [self showConnectWindow];
+            return;
+        }
+        self.password = password;
+        [self connect];
+        return;
+    }
+
+    choice = vsm_prompt_disconnect(self.uri, reason);
+    self.handlingDisconnect = NO;
+    if (choice == VSM_DISCONNECT_RECONNECT)
+        [self connect];
+    else
+        [self showConnectWindow];
+}
+
+/* ------------------------------------------------------- the viewer window */
+
+- (void)createViewerWindow
+{
+    NSRect frame = NSMakeRect(0, 0, 800, 600);
 
     self.window = [[NSWindow alloc]
         initWithContentRect:frame
@@ -391,7 +537,6 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
                              NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
-    self.window.title = self.uri;
     self.window.delegate = self;
     self.window.acceptsMouseMovedEvents = YES;
     self.window.releasedWhenClosed = NO;
@@ -402,12 +547,6 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     self.view.layer.contentsScale = self.window.backingScaleFactor;
 
     [self.window center];
-    [self.window makeKeyAndOrderFront:nil];
-    [self.window makeFirstResponder:self.view];
-    [NSApp activateIgnoringOtherApps:YES];
-
-    [self installDumpSignalHandler];
-    vsm_spice_start(self.spice);
 }
 
 /* SIGUSR1 writes the guest framebuffer to $VSM_DUMP_DIR/frame-N.png.  This
@@ -425,7 +564,13 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
                                                    dispatch_get_main_queue());
     __block int seq = 0;
     dispatch_source_set_event_handler(src, ^{
-        NSString *path = [dir stringByAppendingPathComponent:
+        NSString *path;
+
+        if (!self.window || !self.spice) {
+            NSLog(@"no session on screen; nothing to dump");
+            return;
+        }
+        path = [dir stringByAppendingPathComponent:
                           [NSString stringWithFormat:@"frame-%d.png", ++seq]];
         NSRect content = [self.window contentRectForFrameRect:self.window.frame];
         NSLog(@"window: title=\"%@\" content=%.0fx%.0f pt, backing scale %.1f, "
@@ -484,12 +629,26 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
 - (void)windowDidResignKey:(NSNotification *)note   { [self.view releaseAllKeys]; }
 - (void)applicationDidResignActive:(NSNotification *)n { [self.view releaseAllKeys]; }
-- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)a { return YES; }
+
+/* NO, because the window the user closes is usually on its way to being
+ * replaced: closing the viewer hands them back to the connect window, and the
+ * connect window quits the app explicitly when it is closed. */
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)a { return NO; }
+
+/* Closing the viewer window ends the session but not the process.  The
+ * teardown path orders the window out rather than closing it, so this only
+ * fires for a real user click on the close button. */
+- (void)windowWillClose:(NSNotification *)note
+{
+    if (note.object != self.window)
+        return;
+    [self teardownSession];
+    [self showConnectWindow];
+}
 
 - (void)applicationWillTerminate:(NSNotification *)note
 {
-    [self.view releaseAllKeys];
-    vsm_spice_stop(self.spice);
+    [self teardownSession];
     NSLog(@"disconnected cleanly");
 }
 
@@ -596,29 +755,19 @@ static void cb_status(void *user, const char *status)
     NSLog(@"%s", status);
 }
 
-static void cb_disconnected(void *user, const char *reason)
+static void cb_disconnected(void *user, const char *reason, int auth_failed)
 {
-    (void)user;
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+
     NSLog(@"disconnected: %s", reason);
-    [NSApp terminate:nil];
+    [self disconnectedWithReason:reason authFailed:auth_failed ? YES : NO];
 }
 
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
-        VsmSpiceCallbacks cb = {
-            .primary_create = cb_primary_create,
-            .damaged        = cb_damaged,
-            .title          = cb_title,
-            .status         = cb_status,
-            .disconnected   = cb_disconnected,
-            .cursor_define  = cb_cursor_define,
-            .cursor_hide    = cb_cursor_hide,
-            .cursor_reset   = cb_cursor_reset,
-        };
-
-        if (argc != 2) {
-            fprintf(stderr, "usage: %s spice://HOST:PORT\n", argv[0]);
+        if (argc > 2) {
+            fprintf(stderr, "usage: %s [spice://HOST:PORT]\n", argv[0]);
             return 2;
         }
         vsm_trace = getenv("VSM_TRACE") && *getenv("VSM_TRACE") == '1';
@@ -627,8 +776,9 @@ int main(int argc, const char *argv[])
         NSApp.activationPolicy = NSApplicationActivationPolicyRegular;
 
         g_delegate = [[VsmAppDelegate alloc] init];
-        g_delegate.uri = @(argv[1]);
-        g_delegate.spice = vsm_spice_new(argv[1], &cb, (__bridge void *)g_delegate);
+        /* No URI: applicationDidFinishLaunching opens the connect window. */
+        if (argc == 2)
+            g_delegate.uri = @(argv[1]);
         NSApp.delegate = g_delegate;
 
         [NSApp run];
