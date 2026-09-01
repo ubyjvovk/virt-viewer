@@ -43,6 +43,14 @@ struct _VsmSpice {
 
 /* ---------------------------------------------------------------- helpers */
 
+/* VSM_FORCE_RELATIVE=1: request server (relative) mouse mode at connect.
+ * Inert unless the variable is exactly "1". */
+static gboolean vsm_force_relative(void)
+{
+    const char *env = g_getenv("VSM_FORCE_RELATIVE");
+    return env && *env == '1';
+}
+
 static void notify_status(VsmSpice *self, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 
 static void notify_status(VsmSpice *self, const char *fmt, ...)
@@ -313,6 +321,23 @@ static void update_title(VsmSpice *self)
     }
 }
 
+/* GLib thread only.  The mode the server has actually put us in, pushed to
+ * the main thread so the view can enter or leave its pointer grab. */
+static void notify_mouse_mode(VsmSpice *self, gboolean relative)
+{
+    notify_status(self, "mouse mode: %s",
+                  relative ? "server (relative) - grab the pointer to steer it"
+                           : "client (absolute)");
+    if (self->cb.mouse_mode) {
+        void (*cb)(void *, int) = self->cb.mouse_mode;
+        void *user = self->user;
+        int rel = relative ? 1 : 0;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            cb(user, rel);
+        });
+    }
+}
+
 static void on_mouse_mode(GObject *object, GParamSpec *pspec G_GNUC_UNUSED,
                           gpointer data)
 {
@@ -320,14 +345,7 @@ static void on_mouse_mode(GObject *object, GParamSpec *pspec G_GNUC_UNUSED,
     gint mode = 0;
 
     g_object_get(object, "mouse-mode", &mode, NULL);
-    if (mode == SPICE_MOUSE_MODE_SERVER) {
-        /* Milestone 1 is absolute-only; relative/server mode is logged and
-         * ignored rather than half-implemented. */
-        notify_status(self, "guest requested server (relative) mouse mode - "
-                            "ignored, this build is absolute-mode only");
-    } else {
-        notify_status(self, "mouse mode: client (absolute)");
-    }
+    notify_mouse_mode(self, mode == SPICE_MOUSE_MODE_SERVER);
 }
 
 static void on_channel_event(SpiceChannel *channel G_GNUC_UNUSED,
@@ -391,6 +409,14 @@ static void on_channel_new(SpiceSession *session G_GNUC_UNUSED,
                          G_CALLBACK(on_channel_event), self);
         g_signal_connect(channel, "notify::mouse-mode",
                          G_CALLBACK(on_mouse_mode), self);
+        /* Debug aid: most guests run an agent and therefore client/absolute
+         * mode, which leaves the relative-mode code untestable against a real
+         * server.  VSM_FORCE_RELATIVE=1 asks for server mode as soon as the
+         * main channel exists; unset (the default) nothing is requested and
+         * the server's own choice stands. */
+        if (vsm_force_relative())
+            spice_main_channel_request_mouse_mode(self->main_channel,
+                                                  SPICE_MOUSE_MODE_SERVER);
         return;
     }
 
@@ -559,6 +585,24 @@ static gboolean do_position(gpointer data)
     return G_SOURCE_REMOVE;
 }
 
+static gboolean do_motion(gpointer data)
+{
+    InputOp *op = data;
+    if (op->self->inputs)
+        spice_inputs_channel_motion(op->self->inputs, op->a, op->b, op->c);
+    return G_SOURCE_REMOVE;
+}
+
+static gboolean do_request_mouse_mode(gpointer data)
+{
+    InputOp *op = data;
+    if (op->self->main_channel)
+        spice_main_channel_request_mouse_mode(op->self->main_channel,
+                                              op->a ? SPICE_MOUSE_MODE_SERVER
+                                                    : SPICE_MOUSE_MODE_CLIENT);
+    return G_SOURCE_REMOVE;
+}
+
 static gboolean do_button(gpointer data)
 {
     InputOp *op = data;
@@ -610,6 +654,20 @@ void vsm_spice_send_position(VsmSpice *self, int x, int y, int button_state)
     if (!self)
         return;
     invoke(self, do_position, input_op(self, x, y, button_state, 0));
+}
+
+void vsm_spice_send_motion(VsmSpice *self, int dx, int dy, int button_state)
+{
+    if (!self || (!dx && !dy))
+        return;
+    invoke(self, do_motion, input_op(self, dx, dy, button_state, 0));
+}
+
+void vsm_spice_request_mouse_mode(VsmSpice *self, int relative)
+{
+    if (!self)
+        return;
+    invoke(self, do_request_mouse_mode, input_op(self, relative, 0, 0, 0));
 }
 
 void vsm_spice_send_button(VsmSpice *self, int button, int down, int button_state)

@@ -57,6 +57,10 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     int _buttonState;
     NSCursor *_guestCursor;   /* the guest's shape, nil = system arrow */
     BOOL _cursorHidden;       /* guest asked for no pointer at all */
+    BOOL _relativeMouseMode;  /* the server put us in server/relative mode */
+    BOOL _grabbed;            /* the hardware pointer is tied to this view */
+    BOOL _escapeArmed;        /* ctrl-opt is down with nothing else */
+    double _motionAccumX, _motionAccumY;   /* sub-pixel delta remainder */
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -196,6 +200,11 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 {
     if (self.tapOwnsKeyboard)
         return;
+    /* Without the event tap the release chord is a pointer gesture only:
+     * with nothing grabbed, ctrl-opt is an ordinary modifier combination the
+     * guest is entitled to see. */
+    if (_grabbed && [self noteEscapeChord:event])
+        return;
     [self handleFlagsChanged:event];
 }
 
@@ -276,7 +285,11 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 /* The cursor actually shown while the pointer is inside the view. */
 - (NSCursor *)effectiveCursor
 {
-    if (_cursorHidden)
+    /* While grabbed the local pointer is frozen at the view's centre and
+     * means nothing: the guest draws the only pointer that matters, so the
+     * client's is hidden with the same transparent-cursor trick the guest's
+     * own cursor-hide uses. */
+    if (_cursorHidden || _grabbed)
         return [VsmView blankCursor];
     return _guestCursor ?: NSCursor.arrowCursor;
 }
@@ -361,6 +374,16 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 - (void)sendMotion:(NSEvent *)event
 {
     int x = 0, y = 0;
+
+    if (_grabbed) {
+        [self sendRelativeMotion:event];
+        return;
+    }
+    /* Relative mode with no grab: the server has no absolute pointing device
+     * to aim, so a position message would be dropped on the floor.  The user
+     * clicks to take the grab. */
+    if (_relativeMouseMode)
+        return;
     if (![self guestPointFor:event x:&x y:&y])
         return;
     if (vsm_trace)
@@ -375,6 +398,11 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 
 - (void)sendButton:(int)button mask:(int)mask down:(BOOL)down event:(NSEvent *)event
 {
+    /* A release for a button the guest never saw pressed -- the click that
+     * took the pointer grab, or one already released by the un-grab -- would
+     * be a phantom event in the guest. */
+    if (!down && !(_buttonState & mask))
+        return;
     [self sendMotion:event];
     if (down)
         _buttonState |= mask;
@@ -386,11 +414,23 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     vsm_spice_send_button(self.spice, button, down ? 1 : 0, _buttonState);
 }
 
-- (void)mouseDown:(NSEvent *)e       { [self sendButton:VSM_BUTTON_LEFT   mask:VSM_MASK_LEFT   down:YES event:e]; }
+/* In relative mode a click with no grab is the gesture that TAKES the grab,
+ * and it is consumed: forwarding it as well would fire whatever sits under a
+ * guest pointer the user cannot see yet.  Returns YES when the click was
+ * spent on the grab.  In absolute mode this is always NO. */
+- (BOOL)clickTookGrab
+{
+    if (!_relativeMouseMode || _grabbed)
+        return NO;
+    [self grabPointer];
+    return YES;
+}
+
+- (void)mouseDown:(NSEvent *)e       { if ([self clickTookGrab]) return; [self sendButton:VSM_BUTTON_LEFT   mask:VSM_MASK_LEFT   down:YES event:e]; }
 - (void)mouseUp:(NSEvent *)e         { [self sendButton:VSM_BUTTON_LEFT   mask:VSM_MASK_LEFT   down:NO  event:e]; }
-- (void)rightMouseDown:(NSEvent *)e  { [self sendButton:VSM_BUTTON_RIGHT  mask:VSM_MASK_RIGHT  down:YES event:e]; }
+- (void)rightMouseDown:(NSEvent *)e  { if ([self clickTookGrab]) return; [self sendButton:VSM_BUTTON_RIGHT  mask:VSM_MASK_RIGHT  down:YES event:e]; }
 - (void)rightMouseUp:(NSEvent *)e    { [self sendButton:VSM_BUTTON_RIGHT  mask:VSM_MASK_RIGHT  down:NO  event:e]; }
-- (void)otherMouseDown:(NSEvent *)e  { [self sendButton:VSM_BUTTON_MIDDLE mask:VSM_MASK_MIDDLE down:YES event:e]; }
+- (void)otherMouseDown:(NSEvent *)e  { if ([self clickTookGrab]) return; [self sendButton:VSM_BUTTON_MIDDLE mask:VSM_MASK_MIDDLE down:YES event:e]; }
 - (void)otherMouseUp:(NSEvent *)e    { [self sendButton:VSM_BUTTON_MIDDLE mask:VSM_MASK_MIDDLE down:NO  event:e]; }
 
 - (void)scrollWheel:(NSEvent *)event
@@ -409,6 +449,182 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     if (vsm_trace)
         NSLog(@"scroll %d steps", steps);
     vsm_spice_send_scroll(self.spice, steps, _buttonState);
+}
+
+/* ------------------------------------------------------- pointer grab */
+
+/* How far the on-screen pointer may drift from the view's centre before it
+ * is warped back.  While the grab holds it should not move at all; this is
+ * the safety net for the window between the OS re-associating the pointer
+ * (a Space switch, a system alert) and the next event arriving. */
+static const CGFloat VSM_POINTER_DRIFT_LIMIT = 64.0;
+
+/* The view's centre in Core Graphics global display coordinates: origin at
+ * the TOP-left of the display that owns the menu bar, which is what
+ * CGWarpMouseCursorPosition speaks.  NSScreen is bottom-left origin, so the
+ * y axis has to be flipped through the height of screen 0 (always the one
+ * whose frame origin is 0,0). */
+- (CGPoint)viewCentreInDisplayCoordinates
+{
+    NSRect inWindow = [self convertRect:self.bounds toView:nil];
+    NSRect onScreen = [self.window convertRectToScreen:inWindow];
+    NSScreen *zero = NSScreen.screens.firstObject;
+    CGFloat flipH = zero ? NSMaxY(zero.frame) : 0;
+
+    return CGPointMake(NSMidX(onScreen), flipH - NSMidY(onScreen));
+}
+
+- (BOOL)pointerGrabbed { return _grabbed; }
+
+- (void)setRelativeMouseMode:(BOOL)relative
+{
+    if (relative == _relativeMouseMode)
+        return;
+    _relativeMouseMode = relative;
+    NSLog(@"mouse mode: %s", relative ? "relative (server)" : "absolute (client)");
+    if (!relative) {
+        /* Back to absolute: give the pointer back and let every existing
+         * absolute-mode path work exactly as it did before. */
+        [self ungrabPointer:@"guest switched to absolute mouse mode"];
+        return;
+    }
+    /* Taking the pointer the instant the mode arrives is only reasonable
+     * when the user is already looking at this window; otherwise the first
+     * click in the view takes it. */
+    if (self.window.isKeyWindow && NSApp.isActive)
+        [self grabPointer];
+}
+
+- (void)grabPointer
+{
+    if (_grabbed || !_relativeMouseMode || !self.spice)
+        return;
+    if (!self.window.isKeyWindow)
+        return;
+
+    _motionAccumX = _motionAccumY = 0;
+    CGWarpMouseCursorPosition([self viewCentreInDisplayCoordinates]);
+    /* Untie the hardware mouse from the on-screen pointer.  The pointer then
+     * cannot move -- so it never reaches a screen edge, another window or
+     * another display -- while the hardware deltas keep arriving as ordinary
+     * mouse-moved events.  This is the one call that makes the user's
+     * desktop pointer OUR responsibility until -ungrabPointer: runs. */
+    CGAssociateMouseAndMouseCursorPosition(false);
+    _grabbed = YES;
+    [self refreshCursorRects];
+    [self.owner viewDidChangePointerGrab:YES];
+    NSLog(@"pointer grabbed");
+}
+
+- (void)ungrabPointer:(NSString *)reason
+{
+    BOOL wasGrabbed = _grabbed;
+
+    /* Unconditional, and first: a pointer left disassociated is the worst
+     * failure this file can produce -- the user's whole desktop stops
+     * responding to the mouse -- so re-association is never made conditional
+     * on the state machine agreeing that something was grabbed. */
+    CGAssociateMouseAndMouseCursorPosition(true);
+    _escapeArmed = NO;
+    if (!wasGrabbed)
+        return;
+
+    _grabbed = NO;
+    _motionAccumX = _motionAccumY = 0;
+    /* A button still down when the grab ends would stay down in the guest
+     * for ever: its mouseUp goes wherever the freed pointer went. */
+    [self releaseHeldButtons];
+    [self refreshCursorRects];
+    [self.owner viewDidChangePointerGrab:NO];
+    NSLog(@"pointer released (%@)", reason);
+}
+
+- (void)releaseHeldButtons
+{
+    static const struct { int mask; int button; } known[] = {
+        { VSM_MASK_LEFT,   VSM_BUTTON_LEFT   },
+        { VSM_MASK_MIDDLE, VSM_BUTTON_MIDDLE },
+        { VSM_MASK_RIGHT,  VSM_BUTTON_RIGHT  },
+    };
+
+    for (size_t i = 0; i < sizeof(known) / sizeof(known[0]); i++) {
+        if (!(_buttonState & known[i].mask))
+            continue;
+        _buttonState &= ~known[i].mask;
+        if (vsm_trace)
+            NSLog(@"button %d release (ungrab) state=0x%x",
+                  known[i].button, _buttonState);
+        vsm_spice_send_button(self.spice, known[i].button, 0, _buttonState);
+    }
+}
+
+- (BOOL)noteEscapeChord:(NSEvent *)event
+{
+    NSEventModifierFlags flags = event.modifierFlags;
+    BOOL ctrl = (flags & NSEventModifierFlagControl) != 0;
+    BOOL opt  = (flags & NSEventModifierFlagOption) != 0;
+
+    if (ctrl && opt &&
+        !(flags & (NSEventModifierFlagCommand | NSEventModifierFlagShift)))
+        _escapeArmed = YES;
+    else if (_escapeArmed && (flags & (NSEventModifierFlagCommand |
+                                       NSEventModifierFlagShift)))
+        _escapeArmed = NO;            /* a third modifier: a real chord */
+
+    if (!_escapeArmed || ctrl || opt)
+        return NO;
+
+    _escapeArmed = NO;
+    [self ungrabPointer:@"ctrl-alt escape chord"];
+    /* The two presses reached the guest before the gesture could be
+     * recognised -- it is only a chord once BOTH keys are back up -- so the
+     * guest is holding ctrl and alt right now and, because the releases are
+     * swallowed here, nothing else would ever let go of them. */
+    [self releaseAllKeys];
+    return YES;
+}
+
+- (void)resetEscapeChord { _escapeArmed = NO; }
+
+/* Belt and braces: put the on-screen pointer back in the middle of the view
+ * if anything moved it.  A warp does not itself produce a delta -- deltaX/Y
+ * come from the hardware, not from the cursor's position -- so this cannot
+ * inject phantom guest motion. */
+- (void)recentrePointerIfDrifted
+{
+    CGPoint centre = [self viewCentreInDisplayCoordinates];
+    NSPoint now = NSEvent.mouseLocation;
+    NSScreen *zero = NSScreen.screens.firstObject;
+    CGFloat flipH = zero ? NSMaxY(zero.frame) : 0;
+
+    if (fabs(now.x - centre.x) < VSM_POINTER_DRIFT_LIMIT &&
+        fabs((flipH - now.y) - centre.y) < VSM_POINTER_DRIFT_LIMIT)
+        return;
+    CGWarpMouseCursorPosition(centre);
+}
+
+/* Relative motion.  NSEvent deltaX/deltaY carry the hardware movement of a
+ * mouse-moved or -dragged event and stay meaningful while the pointer itself
+ * is frozen; deltaY is positive DOWNWARD, the same sense SPICE wants. */
+- (void)sendRelativeMotion:(NSEvent *)event
+{
+    int dx, dy;
+
+    /* Trackpads and high-resolution mice report sub-pixel deltas; keeping
+     * the remainder is what makes slow movement work instead of rounding
+     * away to nothing. */
+    _motionAccumX += event.deltaX;
+    _motionAccumY += event.deltaY;
+    dx = (int)_motionAccumX;
+    dy = (int)_motionAccumY;
+    _motionAccumX -= dx;
+    _motionAccumY -= dy;
+    if (!dx && !dy)
+        return;
+    [self recentrePointerIfDrifted];
+    if (vsm_trace)
+        NSLog(@"motion dx,dy %d,%d buttons=0x%x", dx, dy, _buttonState);
+    vsm_spice_send_motion(self.spice, dx, dy, _buttonState);
 }
 
 - (void)updateTrackingAreas
@@ -453,7 +669,7 @@ typedef enum {
 } VsmQuitAction;
 
 @interface VsmAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate,
-                                      VsmEventTapDelegate>
+                                      VsmEventTapDelegate, VsmViewOwner>
 @property (nonatomic, strong) NSWindow *window;
 @property (nonatomic, strong) VsmView *view;
 @property (nonatomic, assign) VsmSpice *spice;
@@ -474,9 +690,10 @@ typedef enum {
 /* macOS shows its Accessibility dialog at most once per run of the viewer:
  * a prompt on every toggle would be a prompt loop. */
 @property (nonatomic, assign) BOOL promptedForAccessibility;
-/* ⌃⌥ went down together with nothing else held -- if both come back up
- * before any other key is pressed, that is the escape chord. */
-@property (nonatomic, assign) BOOL escapeArmed;
+/* The window title without the pointer-grab suffix, so the suffix can be
+ * added and removed without ever being appended twice or baked in.  The
+ * ⌃⌥ chord state itself lives in the view, which owns the grab. */
+@property (nonatomic, copy)   NSString *baseTitle;
 /* Running while ⌘Q is held; firing quits, letting go cancels. */
 @property (nonatomic, strong) NSTimer *quitHoldTimer;
 @property (nonatomic, assign) unsigned short quitHoldKeyCode;
@@ -507,6 +724,7 @@ static void cb_cursor_define(void *user, int width, int height,
                              int hot_x, int hot_y, const uint8_t *rgba);
 static void cb_cursor_hide(void *user);
 static void cb_cursor_reset(void *user);
+static void cb_mouse_mode(void *user, int relative);
 
 static const VsmSpiceCallbacks vsm_callbacks = {
     .primary_create = cb_primary_create,
@@ -517,6 +735,7 @@ static const VsmSpiceCallbacks vsm_callbacks = {
     .cursor_define  = cb_cursor_define,
     .cursor_hide    = cb_cursor_hide,
     .cursor_reset   = cb_cursor_reset,
+    .mouse_mode     = cb_mouse_mode,
 };
 
 /* XT (AT set 1) scancodes for the Send Key chords.  0x1xx is the 0xe0-
@@ -607,6 +826,21 @@ enum {
     [sendMenu addItem:[self sendKeyItem:@"F11" codes:@[@(VSM_XT_F11)]]];
     item = [inputMenu addItemWithTitle:@"Send Key" action:NULL keyEquivalent:@""];
     item.submenu = sendMenu;
+    /* Debug affordance, present only when the run was started with
+     * VSM_FORCE_RELATIVE=1: the same session can be asked to go back to
+     * client/absolute mode, which is the only way to exercise both halves of
+     * the mode switch against one guest. */
+    if (NSProcessInfo.processInfo.environment[@"VSM_FORCE_RELATIVE"]) {
+        [inputMenu addItem:[NSMenuItem separatorItem]];
+        item = [inputMenu addItemWithTitle:@"Request Absolute Mouse Mode"
+                                    action:@selector(requestAbsoluteMouseMode:)
+                             keyEquivalent:@""];
+        item.target = self;
+        item = [inputMenu addItemWithTitle:@"Request Relative Mouse Mode"
+                                    action:@selector(requestRelativeMouseMode:)
+                             keyEquivalent:@""];
+        item.target = self;
+    }
     inputItem.submenu = inputMenu;
     [bar addItem:inputItem];
 
@@ -650,6 +884,22 @@ enum {
 }
 
 /* --------------------------------------------------------- menu actions */
+
+/* VSM_FORCE_RELATIVE debug items.  The server decides: these only ask, and
+ * the answer arrives back through the mouse_mode callback. */
+- (void)requestAbsoluteMouseMode:(id)sender
+{
+    (void)sender;
+    NSLog(@"requesting client (absolute) mouse mode");
+    vsm_spice_request_mouse_mode(self.spice, 0);
+}
+
+- (void)requestRelativeMouseMode:(id)sender
+{
+    (void)sender;
+    NSLog(@"requesting server (relative) mouse mode");
+    vsm_spice_request_mouse_mode(self.spice, 1);
+}
 
 - (void)toggleCaptureKeyboard:(id)sender
 {
@@ -722,7 +972,7 @@ enum {
 - (void)setCapture:(BOOL)on reason:(NSString *)reason
 {
     self.view.captureKeyboard = on;
-    self.escapeArmed = NO;
+    [self.view resetEscapeChord];
     [self cancelQuitHold];
     /* Turning capture off mid-chord would otherwise leave whatever modifier
      * is physically down stuck down in the guest. */
@@ -797,30 +1047,21 @@ enum {
 }
 
 /* ⌃⌥ pressed together and released with nothing in between is the escape
- * chord (the T-0027 mouse-ungrab convention): the one keystroke that is
- * always handled locally.  It cannot be recognised until the release, so the
- * presses have already reached the guest by then -- which is the other half
- * of why firing it releases every key the guest holds. */
+ * chord: the one keystroke that is always handled locally.  It hands the
+ * machine back -- the pointer grab AND the keyboard capture -- and it is
+ * recognised by the view (-noteEscapeChord:, which owns the grab), so the
+ * tap path and the plain responder path cannot drift apart.  The chord
+ * cannot be recognised until the release, so the presses have already
+ * reached the guest by then, which is why firing it releases every key the
+ * guest holds. */
 - (BOOL)tapFlagsChanged:(NSEvent *)event
 {
-    NSEventModifierFlags flags = event.modifierFlags;
-    BOOL ctrl = (flags & NSEventModifierFlagControl) != 0;
-    BOOL opt  = (flags & NSEventModifierFlagOption) != 0;
-
-    if (ctrl && opt &&
-        !(flags & (NSEventModifierFlagCommand | NSEventModifierFlagShift)))
-        self.escapeArmed = YES;
-    else if (self.escapeArmed && (flags & (NSEventModifierFlagCommand |
-                                           NSEventModifierFlagShift)))
-        self.escapeArmed = NO;        /* a third modifier: a real chord */
-
-    if (self.escapeArmed && !ctrl && !opt) {
-        self.escapeArmed = NO;
+    if ([self.view noteEscapeChord:event]) {
         [self setCapture:NO reason:@"ctrl-alt escape chord"];
         return YES;                   /* the chord itself is never forwarded */
     }
     /* Letting go of Cmd ends a hold, whichever half of it came up first. */
-    if (!(flags & NSEventModifierFlagCommand))
+    if (!(event.modifierFlags & NSEventModifierFlagCommand))
         [self cancelQuitHold];
     [self.view handleFlagsChanged:event];
     return YES;
@@ -828,7 +1069,7 @@ enum {
 
 - (BOOL)tapKeyDown:(NSEvent *)event
 {
-    self.escapeArmed = NO;            /* a real keystroke, not the chord */
+    [self.view resetEscapeChord];     /* a real keystroke, not the chord */
 
     switch ([self quitActionForKeyDown:event]) {
     case VSM_QUIT_NOW:
@@ -1275,7 +1516,8 @@ enum {
 {
     if (!self.window)
         [self createViewerWindow];
-    self.window.title = self.uri;
+    self.baseTitle = self.uri;
+    [self updateWindowTitle];
 
     self.spice = vsm_spice_new(self.uri.UTF8String, &vsm_callbacks,
                                (__bridge void *)self);
@@ -1291,6 +1533,25 @@ enum {
     vsm_spice_start(self.spice);
 }
 
+/* virt-viewer's convention: while the client owns the pointer the title says
+ * how to get it back.  The suffix is composed here rather than appended to
+ * whatever is on screen, so a title update from the guest mid-grab cannot
+ * lose it and an un-grab cannot leave it behind. */
+- (void)updateWindowTitle
+{
+    NSString *base = self.baseTitle ?: self.uri ?: @"";
+
+    self.window.title = self.view.pointerGrabbed
+        ? [base stringByAppendingString:@" (press \u2303\u2325 to release)"]
+        : base;
+}
+
+- (void)viewDidChangePointerGrab:(BOOL)grabbed
+{
+    (void)grabbed;
+    [self updateWindowTitle];
+}
+
 /* Release the guest's keys, stop the GLib thread and drop the session.  Safe
  * with no session; leaves the viewer window alone. */
 - (void)teardownSession
@@ -1299,6 +1560,7 @@ enum {
 
     if (!spice)
         return;
+    [self.view ungrabPointer:@"session torn down"];
     [self.view releaseAllKeys];
     self.spice = NULL;
     self.view.spice = NULL;
@@ -1363,6 +1625,7 @@ enum {
     self.window.backgroundColor = NSColor.blackColor;
 
     self.view = [[VsmView alloc] initWithFrame:frame];
+    self.view.owner = self;
     self.view.spice = self.spice;
     self.window.contentView = self.view;
     self.view.layer.contentsScale = self.window.backingScaleFactor;
@@ -1509,18 +1772,18 @@ enum {
 - (void)windowDidResignKey:(NSNotification *)note
 {
     (void)note;
+    [self.view ungrabPointer:@"viewer window resigned key"];
     [self.view releaseAllKeys];
     [self cancelQuitHold];
-    self.escapeArmed = NO;
     [self noteCaptureSuspendedBy:@"viewer window resigned key"];
 }
 
 - (void)applicationDidResignActive:(NSNotification *)note
 {
     (void)note;
+    [self.view ungrabPointer:@"application deactivated"];
     [self.view releaseAllKeys];
     [self cancelQuitHold];
-    self.escapeArmed = NO;
     [self noteCaptureSuspendedBy:@"application deactivated"];
 }
 
@@ -1646,7 +1909,14 @@ static void cb_cursor_reset(void *user)
 static void cb_title(void *user, const char *title)
 {
     VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
-    self.window.title = @(title);
+    self.baseTitle = @(title);
+    [self updateWindowTitle];
+}
+
+static void cb_mouse_mode(void *user, int relative)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    [self.view setRelativeMouseMode:relative ? YES : NO];
 }
 
 static void cb_status(void *user, const char *status)
