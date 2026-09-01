@@ -158,6 +158,18 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   needs brew dylibbundler (GTK bundler dropped it — could inline);
   window-targeted screenshot helper worth promoting to scripts/.
 
+- 2026-09-01 — T-0027 relative mouse ACCEPTED (1 attempt, $7.80,
+  +745/-47; merged build + 5/5 green). Live-verified in forced server
+  mode (VSM_FORCE_RELATIVE): 419 deltas, guest cursor corner-to-corner
+  via damage trail, ⌃⌥ ungrab on both tap AND responder paths, absolute
+  switch-back in-session. Safety verified: single ungrabPointer:
+  re-associates the cursor FIRST and unconditionally; 5 callers + kill
+  backstop. Gotcha recorded: request_mouse_mode at channel-new stalls
+  the session silently — must wait for the mouse-mode notification.
+  Follow-up candidate (real gap): server-reported cursor-move position
+  is not rendered — invisible on framebuffer-compositing guests (this
+  one), but a cursor-plane guest would show NO pointer while grabbed.
+
 ## Board snapshot
 - 2026-09-01 — **21/21 done, drained.** Waves: GTK port T-0001..T-0010; PR
   assembly T-0011; stress reviews T-0012..14; fix wave T-0015..19;
