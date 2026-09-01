@@ -74,8 +74,11 @@ typedef struct {
      * a NUL-terminated UTF-8 g_malloc() block that the callee OWNS and must
      * release with g_free(). */
     void (*clipboard_data)(void *user, char *text);
-    /* The guest wants the host clipboard's UTF-8 text; answer with
-     * vsm_spice_clipboard_send() (or with NULL if there is none). */
+    /* The guest wants the host clipboard's UTF-8 text.  EVERY request must
+     * be answered exactly once: with vsm_spice_clipboard_send() when there
+     * is text, and with vsm_spice_clipboard_send_none() when there is not.
+     * An unanswered request leaves the guest agent waiting on a reply that
+     * never comes, and a wedged agent ignores every later grab. */
     void (*clipboard_request)(void *user);
 } VsmSpiceCallbacks;
 
@@ -125,8 +128,8 @@ void vsm_spice_send_scroll(VsmSpice *self, int steps, int button_state);
  * VSM_FORCE_RELATIVE debug path and by the Input menu item it installs. */
 void vsm_spice_request_mouse_mode(VsmSpice *self, int relative);
 
-/* Clipboard.  All four are safe to call from the main thread with a NULL
- * @self, and all four are silently dropped while no guest agent is connected
+/* Clipboard.  All five are safe to call from the main thread with a NULL
+ * @self, and all five are silently dropped while no guest agent is connected
  * -- the caller never has to track that state to stay correct.  Contents are
  * never logged: the trace records types and byte counts only.
  *
@@ -140,8 +143,15 @@ void vsm_spice_clipboard_release(VsmSpice *self);
  * clipboard_data callback. */
 void vsm_spice_clipboard_request(VsmSpice *self);
 /* Answer a clipboard_request callback.  @utf8 is NUL-terminated and is
- * copied; NULL or "" sends nothing. */
+ * copied; NULL or "" sends nothing -- use vsm_spice_clipboard_send_none()
+ * for those, or the request goes unanswered. */
 void vsm_spice_clipboard_send(VsmSpice *self, const char *utf8);
+/* Answer a clipboard_request callback that cannot be fulfilled: an empty
+ * VD_AGENT_CLIPBOARD_NONE notify, which is how spice-gtk closes the same
+ * case (src/spice-gtk-session.c, clipboard_received_cb).  The guest agent
+ * needs one reply per request; without it its clipboard state machine stays
+ * blocked on the outstanding one. */
+void vsm_spice_clipboard_send_none(VsmSpice *self);
 
 /* SPICE button numbers, re-exported so main.m need not include the
  * protocol headers. */

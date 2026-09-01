@@ -44,7 +44,9 @@
 - (void)guestReleased;
 /* Takes ownership of @utf8 (a g_malloc block) and releases it. */
 - (void)guestSentText:(char *)utf8;
-/* The guest wants what this host offered; answers from the pasteboard. */
+/* The guest wants what this host offered.  Answers from the pasteboard, and
+ * answers "none" when the pasteboard no longer holds text: every request gets
+ * exactly one reply. */
 - (void)guestRequestedText;
 
 /* Stop polling and forget the session.  Safe to call twice. */
