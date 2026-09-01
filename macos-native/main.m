@@ -217,10 +217,15 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
  * already inside the view takes effect immediately. */
 - (void)refreshCursorRects
 {
+    NSPoint p = [self convertPoint:self.window.mouseLocationOutsideOfEventStream
+                          fromView:nil];
+
     [self.window invalidateCursorRectsForView:self];
-    if (NSPointInRect([self convertPoint:self.window.mouseLocationOutsideOfEventStream
-                                fromView:nil],
-                      self.bounds))
+    /* mouseLocationOutsideOfEventStream reports the pointer in this window's
+     * coordinates whether or not this window is the one under it, so the key
+     * check matters: without it an occluded viewer would repaint the cursor
+     * on top of whatever app the user is actually pointing at. */
+    if (self.window.isKeyWindow && NSPointInRect(p, self.bounds))
         [[self effectiveCursor] set];
 }
 
