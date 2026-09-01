@@ -48,6 +48,13 @@ typedef struct {
     void (*cursor_hide)(void *user);
     /* The cursor channel was reset; revert to the default system arrow. */
     void (*cursor_reset)(void *user);
+
+    /* The negotiated mouse mode changed.  @relative is 1 for SPICE server
+     * mode (the guest has no absolute pointing device: the client must grab
+     * the pointer and send deltas) and 0 for client/absolute mode.  Fires
+     * once when the server announces the mode at connect and again on every
+     * later switch, so the view can enter and leave its grab state. */
+    void (*mouse_mode)(void *user, int relative);
 } VsmSpiceCallbacks;
 
 /* Lifecycle.  vsm_spice_new() does not touch the network; vsm_spice_start()
@@ -81,9 +88,20 @@ IOSurfaceRef vsm_spice_copy_surface(VsmSpice *self);
 void vsm_spice_send_key(VsmSpice *self, unsigned scancode, int down);
 void vsm_spice_release_all_keys(VsmSpice *self);
 void vsm_spice_send_position(VsmSpice *self, int x, int y, int button_state);
+/* Relative (server mouse mode) motion: @dx/@dy are pointer deltas in guest
+ * pixels, right/down positive.  Only meaningful while the session is in
+ * server mode; the server ignores it in client mode. */
+void vsm_spice_send_motion(VsmSpice *self, int dx, int dy, int button_state);
 void vsm_spice_send_button(VsmSpice *self, int button, int down, int button_state);
 /* @steps > 0 scrolls up, < 0 scrolls down. */
 void vsm_spice_send_scroll(VsmSpice *self, int steps, int button_state);
+
+/* Ask the server to switch mouse mode: @relative 1 requests server
+ * (relative) mode, 0 requests client (absolute) mode.  The server answers
+ * with a mouse-mode change, which arrives back as the mouse_mode callback --
+ * it may refuse, so never assume the mode from the request.  Used by the
+ * VSM_FORCE_RELATIVE debug path and by the Input menu item it installs. */
+void vsm_spice_request_mouse_mode(VsmSpice *self, int relative);
 
 /* SPICE button numbers, re-exported so main.m need not include the
  * protocol headers. */

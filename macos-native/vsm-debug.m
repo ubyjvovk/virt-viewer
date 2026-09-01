@@ -3,6 +3,7 @@
 #import <ImageIO/ImageIO.h>
 
 #import "main-view.h"
+#import "vsm-tap.h"
 
 static BOOL write_png(CGImageRef image, NSString *path);
 
@@ -148,6 +149,187 @@ void vsm_run_input_selftest(VsmView *view, NSWindow *window)
     CFRelease(scrollDown);
 
     NSLog(@"selftest: end");
+}
+
+/* --------------------------------------------------------- grab selftest */
+
+/* A mouse-moved event carrying hardware deltas.  -[NSEvent deltaX/deltaY]
+ * read the CGEvent's kCGMouseEventDelta* fields, and only a CGEvent-backed
+ * NSEvent has them: +mouseEventWithType: cannot express a delta at all. */
+static NSEvent *motion_event(double dx, double dy)
+{
+    CGEventRef cg = CGEventCreateMouseEvent(NULL, kCGEventMouseMoved,
+                                            CGPointZero, kCGMouseButtonLeft);
+    NSEvent *event;
+
+    CGEventSetDoubleValueField(cg, kCGMouseEventDeltaX, dx);
+    CGEventSetDoubleValueField(cg, kCGMouseEventDeltaY, dy);
+    event = [NSEvent eventWithCGEvent:cg];
+    CFRelease(cg);
+    return event;
+}
+
+/* Feed @count motion events of (@dx,@dy) to @view one every 25 ms, then run
+ * @done.  The pacing is the point: spice-gtk's inputs channel only allows a
+ * bounded number of un-acknowledged motion messages in flight and silently
+ * drops the rest, so a burst posted in a single turn of the run loop mostly
+ * evaporates.  Real hardware paces itself; a script has to. */
+static void drive_motion(VsmView *view, int count, double dx, double dy,
+                         dispatch_block_t done)
+{
+    if (count <= 0) {
+        done();
+        return;
+    }
+    [view mouseMoved:motion_event(dx, dy)];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_MSEC),
+                   dispatch_get_main_queue(), ^{
+        drive_motion(view, count - 1, dx, dy, done);
+    });
+}
+
+/* Give the guest time to act on a batch of input and paint its answer: every
+ * send here is asynchronous twice over (main thread -> GLib thread -> wire),
+ * so dumping the framebuffer in the same turn that posted the motion
+ * photographs the frame before anything has happened. */
+static void settle(dispatch_block_t next)
+{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), next);
+}
+
+/* One modifier transition, as flagsChanged delivers it: the device-dependent
+ * bit for the specific key plus the generic mask, exactly like the hardware
+ * (see -[VsmView handleFlagsChanged:]).
+ *
+ * There are two entry points for a real modifier keystroke and the single
+ * source rule means only one of them is live at a time, so a synthetic one
+ * has to pick the same one: with the event tap installed the view's own
+ * -flagsChanged: deliberately stands aside and the tap's decision function
+ * is where the escape chord is recognised. */
+static void flags(VsmView *view, NSWindow *window, unsigned short keyCode,
+                  NSEventModifierFlags mask)
+{
+    NSEvent *event = key_event(window, NSEventTypeFlagsChanged, keyCode, mask);
+    id delegate = window.delegate;
+
+    if (view.tapOwnsKeyboard &&
+        [delegate respondsToSelector:@selector(eventTapShouldConsume:)])
+        [(id<VsmEventTapDelegate>)delegate eventTapShouldConsume:event];
+    else
+        [view flagsChanged:event];
+}
+
+/* ctrl down, opt down, ctrl up, opt up: only the last event completes the
+ * chord, and the two presses have already reached the guest by then. */
+static void escape_chord(VsmView *view, NSWindow *window)
+{
+    flags(view, window, 0x3B, NSEventModifierFlagControl | 0x01);
+    flags(view, window, 0x3A, NSEventModifierFlagControl | 0x01 |
+                              NSEventModifierFlagOption | 0x20);
+    flags(view, window, 0x3B, NSEventModifierFlagOption | 0x20);
+    flags(view, window, 0x3A, 0);
+}
+
+static void dump(VsmSpice *spice, NSString *dumpDir, NSString *name)
+{
+    if (dumpDir)
+        vsm_dump_surface(spice, [dumpDir stringByAppendingPathComponent:name]);
+}
+
+/* The tail of the script, once the guest has been driven and photographed. */
+static void grab_selftest_finish(VsmView *view, NSWindow *window, NSPoint centre)
+{
+    /* Buttons and scroll still work while grabbed. */
+    NSLog(@"grab-selftest: buttons and scroll while grabbed");
+    [view mouseDown:mouse_event(window, NSEventTypeLeftMouseDown, centre)];
+    [view mouseUp:mouse_event(window, NSEventTypeLeftMouseUp, centre)];
+    CGEventRef scroll = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitLine, 1, 3);
+    [view scrollWheel:[NSEvent eventWithCGEvent:scroll]];
+    CFRelease(scroll);
+
+    /* The ctrl-opt release chord, through whichever entry point is live.  The
+     * log must show the guest's held ctrl and alt being released: the chord
+     * swallows their key-ups, so nothing else ever would. */
+    NSLog(@"grab-selftest: ctrl-opt release chord (%s path)",
+          view.tapOwnsKeyboard ? "event tap" : "responder");
+    escape_chord(view, window);
+    NSLog(@"grab-selftest: after chord grabbed=%d title=%@",
+          view.pointerGrabbed, window.title);
+
+    /* Ungrabbed relative mode sends nothing: a position message has no
+     * meaning to a server with no absolute pointing device. */
+    [view mouseMoved:motion_event(50, 50)];
+
+    /* The chord again, on whichever entry point is live now -- firing it
+     * turns keyboard capture off, which hands the keyboard back from the tap
+     * to the responder chain, so this second pass covers the other one. */
+    NSLog(@"grab-selftest: re-grab, then the chord again (%s path)",
+          view.tapOwnsKeyboard ? "event tap" : "responder");
+    [view mouseDown:mouse_event(window, NSEventTypeLeftMouseDown, centre)];
+    [view mouseUp:mouse_event(window, NSEventTypeLeftMouseUp, centre)];
+    escape_chord(view, window);
+    NSLog(@"grab-selftest: after second chord grabbed=%d title=%@",
+          view.pointerGrabbed, window.title);
+
+    /* Back to absolute in the same session.  VSM_FORCE_RELATIVE asks for
+     * server mode once and only once, so this request is the last word: the
+     * mode callback must un-grab and the ordinary absolute-position path must
+     * come back to life. */
+    NSLog(@"grab-selftest: requesting client (absolute) mouse mode back");
+    vsm_spice_request_mouse_mode(view.spice, 0);
+    settle(^{
+        NSSize size = view.bounds.size;
+        NSLog(@"grab-selftest: absolute again, grabbed=%d title=%@",
+              view.pointerGrabbed, window.title);
+        /* An ordinary absolute move: the trace line must be "motion X,Y"
+         * again, not "motion dx,dy". */
+        [view mouseMoved:mouse_event(window, NSEventTypeMouseMoved,
+                                     NSMakePoint(size.width / 3.0, size.height / 3.0))];
+        NSLog(@"grab-selftest: end");
+    });
+}
+
+void vsm_run_grab_selftest(VsmView *view, NSWindow *window, NSString *dumpDir)
+{
+    NSSize size = view.bounds.size;
+    NSPoint centre = NSMakePoint(size.width / 2.0, size.height / 2.0);
+    VsmSpice *spice = view.spice;
+
+    NSLog(@"grab-selftest: begin (grabbed=%d)", view.pointerGrabbed);
+
+    /* The click that takes the grab.  It is consumed by the grab, so the
+     * guest never sees it. */
+    [view mouseDown:mouse_event(window, NSEventTypeLeftMouseDown, centre)];
+    [view mouseUp:mouse_event(window, NSEventTypeLeftMouseUp, centre)];
+    NSLog(@"grab-selftest: after click grabbed=%d title=%@",
+          view.pointerGrabbed, window.title);
+    if (!view.pointerGrabbed) {
+        NSLog(@"grab-selftest: NOT grabbed -- is the session in relative mode "
+              @"(VSM_FORCE_RELATIVE=1) and this window key?");
+        return;
+    }
+
+    /* Park the guest pointer in the top-left corner so the "after" frame can
+     * be compared against a known start; the guest clamps at its own edge. */
+    NSLog(@"grab-selftest: parking the guest pointer at the top-left corner");
+    drive_motion(view, 40, -80, -80, ^{
+        settle(^{
+            dump(spice, dumpDir, @"grab-before.png");
+            NSLog(@"grab-selftest: relative motion");
+            /* 40 x (24,16) = (960,640) guest pixels, right and down. */
+            drive_motion(view, 40, 24, 16, ^{
+                /* Sub-pixel deltas: 10 x 0.3 must accumulate into 3 whole
+                 * pixels rather than rounding away to nothing. */
+                drive_motion(view, 10, 0.3, 0.3, ^{
+                    settle(^{
+                        dump(spice, dumpDir, @"grab-after.png");
+                        grab_selftest_finish(view, window, centre);
+                    });
+                });
+            });
+        });
+    });
 }
 
 /* ------------------------------------------------------- cursor selftest */

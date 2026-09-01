@@ -4,11 +4,11 @@ A standalone SPICE client for macOS with **no GTK anywhere**: spice-client-glib
 for the protocol, AppKit/Core Animation for the window, and a keycodemapdb
 scancode table for the keyboard.
 
-Scope so far: **screen, keyboard, absolute mouse, guest cursor shape**, plus a
-connect window, a password prompt and a reconnect/close dialog so the viewer
-can be launched and recovered without a terminal. There is deliberately no
-clipboard, no file transfer, no USB redirection, no audio, no relative
-("server") mouse mode, and no multi-display support.
+Scope so far: **screen, keyboard, absolute and relative mouse, guest cursor
+shape**, plus a connect window, a password prompt and a reconnect/close dialog
+so the viewer can be launched and recovered without a terminal. There is
+deliberately no clipboard, no file transfer, no USB redirection, no audio, and
+no multi-display support.
 
 ## Build
 
@@ -121,6 +121,8 @@ shortcuts and the Accessibility grant".
 | `VSM_CURSOR_SELFTEST=1` | two seconds after the first frame, drive a synthetic cursor script (two shapes with different hotspots, then hide, then reset) through the real cursor code path |
 | `VSM_CURSOR_CHURN=N` | with `VSM_CURSOR_SELFTEST`, replace the cursor N times as fast as possible first, so `leaks(1)` can show there is no per-define leak |
 | `VSM_SENDKEY_SELFTEST=1` | three seconds after the first frame, send one harmless chord (Shift+F11) through the same path as the Send Key menu, so the ordered-press/reverse-release behaviour is provable without firing Ctrl+Alt+Del at a live guest |
+| `VSM_FORCE_RELATIVE=1` | ask the server for **server (relative) mouse mode** once, as soon as it announces a mode. Inert unless the value is exactly `1`; without it the server's own choice stands. It also adds *Request Absolute/Relative Mouse Mode* to the Input menu, so one session can be switched both ways |
+| `VSM_GRAB_SELFTEST=1` | four seconds after the first frame, replay the whole relative-mouse gesture — the click that takes the grab, a paced run of hardware-delta motion events (including sub-pixel ones), a button and a scroll while grabbed, the ⌃⌥ release chord on both entry points, and a switch back to absolute mode. Only useful together with `VSM_FORCE_RELATIVE=1`; dumps the framebuffer before and after the motion run into `VSM_DUMP_DIR` |
 | `VSM_NO_EVENT_TAP=1` | behave as though there were no Accessibility grant: never install the event tap. The only way to test the degraded path on a machine that *has* the grant, since a process cannot revoke its own TCC entry |
 | `VSM_SELFTEST_QUIT=1` | with `VSM_SELFTEST`, terminate via the ⌘Q action four seconds later |
 | `SPICE_DEBUG=1 G_MESSAGES_DEBUG=all` | spice-client-glib's own protocol tracing |
@@ -488,8 +490,79 @@ not at its natural size. Buttons and a running button-state mask go through
 `BUTTON_UP`/`BUTTON_DOWN` press-release pairs, with trackpad fractional deltas
 accumulated into whole notches.
 
-If the guest asks for server (relative) mouse mode, that is logged and ignored
-rather than half-implemented — see the gap list in the ticket report.
+### Relative (server) mouse mode
+
+When the guest has no absolute pointing device the server negotiates **server
+mode**, where the client sends pointer *deltas* rather than positions. The mode
+arrives as `notify::mouse-mode` on the main channel and is pushed to the view
+as `VsmSpiceCallbacks.mouse_mode`; absolute mode is unaffected by any of the
+below.
+
+**Taking the pointer.** Clicking the view grabs it (and the grab is taken
+automatically on the mode switch itself if the window is already key). That
+click is *consumed*: forwarding it as well would fire whatever sits under a
+guest pointer the user cannot see yet. The grab is
+`CGAssociateMouseAndMouseCursorPosition(false)` plus one
+`CGWarpMouseCursorPosition()` to the view's centre — the local pointer then
+stops moving entirely, so it can never reach a screen edge, another window or
+another display, while `NSEvent.deltaX/.deltaY` keep reporting the hardware
+movement. The local cursor is hidden over the view with the same transparent
+1x1 cursor rect the guest's own `cursor-hide` uses. Sub-pixel deltas are
+accumulated, exactly like the scroll wheel, so slow trackpad movement is not
+rounded away.
+
+**Giving it back.** ⌃⌥ pressed together and released with nothing in between —
+virt-viewer's own convention, and the same chord that already turns keyboard
+capture off. While the grab is held the window title gains
+`(press ⌃⌥ to release)`; the suffix is composed from a stored base title rather
+than appended in place, so a title update from the guest mid-grab cannot lose it
+and an un-grab cannot leave it behind.
+
+The chord cannot be recognised until both keys are *up*, by which time both
+presses have already reached the guest — so firing it also releases every key
+the guest holds, and swallows the chord's own key-ups. That is why ⌃⌥ never
+leaves a stuck modifier behind. It is recognised in one place,
+`-[VsmView noteEscapeChord:]`, and driven from both keyboard entry points (the
+event tap when there is an Accessibility grant, `-flagsChanged:` otherwise), so
+the two cannot drift apart.
+
+**One un-grab function.** A pointer left disassociated is the worst failure
+this code can produce — the user's whole desktop stops answering the mouse — so
+every exit goes through `-[VsmView ungrabPointer:]`, and that function calls
+`CGAssociateMouseAndMouseCursorPosition(true)` *first and unconditionally*,
+before it looks at any state. The paths into it: the ⌃⌥ chord (both keyboard
+entry points), the window resigning key, the application deactivating, a mode
+switch back to absolute, session teardown (disconnect, window close, reconnect)
+and quit — the last two via `-teardownSession`, which every quit path already
+runs. As a final backstop the association is process-scoped: it is restored by
+the kernel if the viewer is killed while grabbed.
+
+Any button still held when the grab ends is released on the guest first: its
+`mouseUp` would otherwise go wherever the freed pointer went, leaving the guest
+with a button down for ever.
+
+**Known gap.** The guest's pointer *position* is not drawn by the client. In
+absolute mode it does not need to be — the local pointer is in the same place —
+but in relative mode the server owns the position and reports it with the
+cursor channel's `cursor-move`, which is traced (`VSM_TRACE=1`) but not
+rendered. Whether that is visible depends on the guest: one that composites its
+pointer into the framebuffer (the test guest does) looks right, one that uses
+the cursor plane shows no pointer at all while grabbed. Rendering it is the
+natural next ticket.
+
+**Testing it.** Most guests run an agent and therefore negotiate absolute mode,
+so `VSM_FORCE_RELATIVE=1` asks for server mode once, from the mouse-mode
+notification — *not* at `channel-new`, because the request is a message on the
+main channel and there is nothing to send it down until the server has
+announced a mode. It asks only once: a retry on every announcement would be a
+loop if the server refused. `VSM_GRAB_SELFTEST=1` then replays the whole
+gesture.
+
+One thing that self-test learned the hard way: **spice-gtk drops motion
+messages when un-acknowledged ones pile up**, so a burst of `mouseMoved:` posted
+in a single turn of the run loop mostly evaporates. Real hardware paces itself;
+a script has to, and `drive_motion()` in `vsm-debug.m` sends one event every
+25 ms.
 
 ## URLs and .vv files
 
@@ -559,7 +632,7 @@ left on disk, because the user still needs it.
 | `vsm-tap.m/.h` | the `CGEventTap` that captures the system-reserved chords |
 | `vsm-spice.c/.h` | GLib thread, session and channel wiring, damage blit, input marshalling |
 | `vsm-keymap.c/.h` | generated osx → xtkbd scancode table |
-| `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test, the synthetic cursor self-test and the send-key chord self-test |
+| `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test, the synthetic cursor self-test, the send-key chord self-test and the pointer-grab self-test |
 | `vsm-vv.c/.h` | `.vv` connection-file parser |
 | `build.sh` | the build |
 | `make-bundle.sh` | the `.app` bundler (naming placeholders live at the top) |

@@ -8,10 +8,20 @@
 
 #include "vsm-spice.h"
 
+/* What the view needs from the window it lives in.  The app delegate
+ * implements it; the view holds it weakly because the delegate owns the
+ * window that owns the view. */
+@protocol VsmViewOwner <NSObject>
+/* The pointer grab was taken or released, so the window title has to gain or
+ * lose its "press <ctrl-opt> to release" suffix. */
+- (void)viewDidChangePointerGrab:(BOOL)grabbed;
+@end
+
 /* Layer-backed view whose layer contents is the guest framebuffer IOSurface,
  * and whose responder methods forward keyboard and absolute mouse input to
  * the SPICE inputs channel. */
 @interface VsmView : NSView
+@property (nonatomic, weak) id<VsmViewOwner> owner;
 @property (nonatomic, assign) VsmSpice *spice;
 @property (nonatomic, assign) int guestWidth;
 @property (nonatomic, assign) int guestHeight;
@@ -43,6 +53,36 @@
  * which is what a human pressing the same combination produces.  Used by the
  * Send Key menu and by the send-key selftest. */
 - (void)sendChord:(NSArray<NSNumber *> *)scancodes;
+
+/* ------------------------------------------------------- pointer grab */
+
+/* SPICE server (relative) mouse mode.  In relative mode the guest has no
+ * absolute pointing device, so the view stops sending positions and instead
+ * grabs the hardware pointer and sends deltas; in absolute mode (the
+ * default) nothing about the existing behaviour changes.  Driven by the
+ * session's mouse_mode callback. */
+- (void)setRelativeMouseMode:(BOOL)relative;
+/* YES while the hardware pointer is tied to this view. */
+@property (nonatomic, readonly) BOOL pointerGrabbed;
+/* Take the pointer: freeze it at the view's centre, hide it locally and
+ * route mouse deltas to the guest.  No-op unless relative mode is on, a
+ * session is live and this view's window is key. */
+- (void)grabPointer;
+/* Give the pointer back.  THE single un-grab path: every exit -- the
+ * ctrl-opt chord, losing key, app deactivation, a mode switch back to
+ * absolute, disconnect and quit -- goes through here, because failing to
+ * re-associate the pointer leaves the user's whole desktop wedged.  Safe and
+ * idempotent when nothing is grabbed: it re-associates anyway. */
+- (void)ungrabPointer:(NSString *)reason;
+
+/* Feed one flagsChanged event to the ctrl-opt release chord recogniser.
+ * Returns YES when this event completed the chord, in which case the pointer
+ * has already been un-grabbed and every held key released, and the caller
+ * must not forward the event to the guest. */
+- (BOOL)noteEscapeChord:(NSEvent *)event;
+/* Disarm the recogniser: whatever was physically held is no longer this
+ * view's business (focus loss, a capture toggle, a session teardown). */
+- (void)resetEscapeChord;
 
 /* Cursor channel.  @cursor is the guest's pointer shape, or nil to fall back
  * to the system arrow; the shape applies only while the pointer is inside
