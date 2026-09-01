@@ -572,7 +572,7 @@ Images, rich text, file lists and the X11 `PRIMARY` selection are deliberately
 out: macOS has no `PRIMARY`, and anything that is not text is dropped rather
 than mistranslated. `vsm-spice.c` owns the SPICE half, `vsm-clipboard.m` the
 AppKit half; the five `clipboard_*` entries in `VsmSpiceCallbacks` cross from
-the GLib thread to the main thread, and the four `vsm_spice_clipboard_*`
+the GLib thread to the main thread, and the five `vsm_spice_clipboard_*`
 functions cross back.
 
 **It needs `spice-vdagent` running in the guest.** Without an agent the server
@@ -609,6 +609,21 @@ and sent only when the guest asks for them, which is usually within a hundred
 milliseconds because a guest clipboard manager pulls them straight away. The
 first poll of a new session deliberately treats whatever is already on the
 pasteboard as fresh, so text copied *before* connecting is offered too.
+
+Only a **non-empty** string is offered. `pbcopy </dev/null` leaves the text
+flavour on the pasteboard with zero characters behind it, so the flavour alone
+is not enough to go on and the poll reads the string to measure it; an empty
+copy produces no grab at all.
+
+**Every guest request is answered exactly once**, including the ones that
+cannot be fulfilled: the pasteboard can be cleared in the ~50 ms between the
+grab and the guest's request, and then the answer is an empty
+`VD_AGENT_CLIPBOARD_NONE` notify (`vsm_spice_clipboard_send_none()`, traced as
+`host -> guest, none (0 bytes)`) rather than silence. spice-gtk closes the same
+case the same way (`spice-gtk-session.c`, `clipboard_received_cb`). Saying
+nothing leaves the guest agent waiting on a reply that never arrives, and an
+agent stuck there ignores every later grab — observed against a Linux guest
+before this was added.
 
 **Guest → host is event-driven.** The guest's grab is answered with a request
 for `VD_AGENT_CLIPBOARD_UTF8_TEXT`, and the text that comes back is written to
