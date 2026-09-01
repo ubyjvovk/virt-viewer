@@ -13,6 +13,7 @@
 
 struct _VsmSpice {
     char               *uri;
+    char               *password;  /* set before start(), wiped on free() */
     VsmSpiceCallbacks   cb;
     void               *user;
 
@@ -334,6 +335,7 @@ static void on_channel_event(SpiceChannel *channel G_GNUC_UNUSED,
 {
     VsmSpice *self = data;
     const char *reason = NULL;
+    int auth_failed = 0;
 
     switch (event) {
     case SPICE_CHANNEL_OPENED:
@@ -350,6 +352,7 @@ static void on_channel_event(SpiceChannel *channel G_GNUC_UNUSED,
         break;
     case SPICE_CHANNEL_ERROR_AUTH:
         reason = "authentication failed";
+        auth_failed = 1;
         break;
     case SPICE_CHANNEL_ERROR_IO:
         reason = "I/O error";
@@ -362,11 +365,11 @@ static void on_channel_event(SpiceChannel *channel G_GNUC_UNUSED,
     if (self->stopping)
         return;
     if (self->cb.disconnected) {
-        void (*cb)(void *, const char *) = self->cb.disconnected;
+        void (*cb)(void *, const char *, int) = self->cb.disconnected;
         void *user = self->user;
         char *copy = g_strdup(reason);
         dispatch_async(dispatch_get_main_queue(), ^{
-            cb(user, copy);
+            cb(user, copy, auth_failed);
             g_free(copy);
         });
     }
@@ -462,6 +465,11 @@ static gpointer spice_thread(gpointer data)
                  "enable-audio", FALSE,
                  "enable-usbredir", FALSE,
                  NULL);
+    /* Set separately so the property is left untouched (rather than
+     * explicitly cleared) when no password was supplied -- a URI may carry
+     * one of its own. */
+    if (self->password)
+        g_object_set(self->session, "password", self->password, NULL);
     g_signal_connect(self->session, "channel-new",
                      G_CALLBACK(on_channel_new), self);
     g_signal_connect(self->session, "channel-destroy",
@@ -575,29 +583,35 @@ static void invoke(VsmSpice *self, GSourceFunc fn, InputOp *op)
 
 void vsm_spice_send_key(VsmSpice *self, unsigned scancode, int down)
 {
-    if (!scancode)
+    if (!self || !scancode)
         return;
     invoke(self, do_key, input_op(self, (int)scancode, down, 0, 0));
 }
 
 void vsm_spice_release_all_keys(VsmSpice *self)
 {
+    if (!self)
+        return;
     invoke(self, do_release_all, input_op(self, 0, 0, 0, 0));
 }
 
 void vsm_spice_send_position(VsmSpice *self, int x, int y, int button_state)
 {
+    if (!self)
+        return;
     invoke(self, do_position, input_op(self, x, y, button_state, 0));
 }
 
 void vsm_spice_send_button(VsmSpice *self, int button, int down, int button_state)
 {
+    if (!self)
+        return;
     invoke(self, do_button, input_op(self, button, down, button_state, 0));
 }
 
 void vsm_spice_send_scroll(VsmSpice *self, int steps, int button_state)
 {
-    if (!steps)
+    if (!self || !steps)
         return;
     invoke(self, do_scroll, input_op(self, steps, button_state, 0, 0));
 }
@@ -616,6 +630,30 @@ VsmSpice *vsm_spice_new(const char *uri, const VsmSpiceCallbacks *cb, void *user
     self->pressed = g_hash_table_new(g_direct_hash, g_direct_equal);
     g_mutex_init(&self->lock);
     return self;
+}
+
+/* Overwrite the password copy before releasing it.  The writes go through a
+ * volatile pointer so the compiler may not drop them as dead stores to memory
+ * that is about to be freed. */
+static void wipe_password(VsmSpice *self)
+{
+    volatile char *p = (volatile char *)self->password;
+
+    if (!p)
+        return;
+    while (*p)
+        *p++ = '\0';
+    g_free(self->password);
+    self->password = NULL;
+}
+
+void vsm_spice_set_password(VsmSpice *self, const char *password)
+{
+    if (!self)
+        return;
+    g_return_if_fail(self->thread == NULL);   /* start() already applied it */
+    wipe_password(self);
+    self->password = g_strdup(password);
 }
 
 void vsm_spice_start(VsmSpice *self)
@@ -638,7 +676,7 @@ static gboolean do_stop(gpointer data)
 
 void vsm_spice_stop(VsmSpice *self)
 {
-    if (!self->thread)
+    if (!self || !self->thread)
         return;
     self->stopping = TRUE;
     g_main_context_invoke_full(self->ctx, G_PRIORITY_HIGH, do_stop, self, NULL);
@@ -650,10 +688,25 @@ IOSurfaceRef vsm_spice_copy_surface(VsmSpice *self)
 {
     IOSurfaceRef surface;
 
+    if (!self)
+        return NULL;
     g_mutex_lock(&self->lock);
     surface = self->surface ? (IOSurfaceRef)CFRetain(self->surface) : NULL;
     g_mutex_unlock(&self->lock);
     return surface;
+}
+
+static void release_spice(VsmSpice *self)
+{
+    if (self->surface)
+        CFRelease(self->surface);
+    g_hash_table_unref(self->pressed);
+    g_main_loop_unref(self->loop);
+    g_main_context_unref(self->ctx);
+    g_mutex_clear(&self->lock);
+    wipe_password(self);
+    g_free(self->uri);
+    g_free(self);
 }
 
 void vsm_spice_free(VsmSpice *self)
@@ -661,12 +714,10 @@ void vsm_spice_free(VsmSpice *self)
     if (!self)
         return;
     vsm_spice_stop(self);
-    if (self->surface)
-        CFRelease(self->surface);
-    g_hash_table_unref(self->pressed);
-    g_main_loop_unref(self->loop);
-    g_main_context_unref(self->ctx);
-    g_mutex_clear(&self->lock);
-    g_free(self->uri);
-    g_free(self);
+    /* The thread is joined, so nothing can enqueue another callback -- but the
+     * damage/status/cursor blocks already sitting on the main queue captured
+     * @self and dereference it.  The main queue is FIFO, so a block appended
+     * now runs strictly after all of them, which makes this the earliest point
+     * at which the struct is provably unreferenced. */
+    dispatch_async(dispatch_get_main_queue(), ^{ release_spice(self); });
 }
