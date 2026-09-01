@@ -201,6 +201,21 @@ platform-guarded so Linux/Windows are untouched.
   green. **mac-port and mac-port-pr are now content-identical on all product
   paths.** Board drained 19/19.
 
+- 2026-09-01 — **PIVOT (user decision): go native.** GTK window-management
+  FIXING is abandoned ("i don't see the point in debugging current window
+  management, just go native"); T-0020 accepted as documentation+regression
+  test only (root causes: no window-state-event listener anywhere →
+  Cocoa-initiated fullscreen strands the hidden header (title loss);
+  preferences type-hint override → fullscreen Space trap; monitor-move loss =
+  side effect of the sibling defect). NO fix tickets. T-0021 (toolbar
+  revealer) stays parked in drafts/, superseded. New primary track: T-0022
+  native PoC — spice-glib + CALayer/Metal + keycodemapdb osx2xtkbd, milestone
+  1 = screen/keyboard/absolute mouse only (user explicitly deferred
+  clipboard + file transfer). Test-target ladder in ticket (no SPICE server
+  on macOS brew; may block asking for a user-provided spice:// URI). The
+  upstream MR (mac-port-pr, c33a0c6) remains built and awaiting the user's
+  push decisions — the pivot does not withdraw it.
+
 ## Next actions
 - Waiting on the user (all local until then; NOTHING pushed):
   1. Commit-trailer decision: strip Claude-Session and add the user's own
