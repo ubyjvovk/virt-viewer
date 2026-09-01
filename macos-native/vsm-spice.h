@@ -55,6 +55,28 @@ typedef struct {
      * once when the server announces the mode at connect and again on every
      * later switch, so the view can enter and leave its grab state. */
     void (*mouse_mode)(void *user, int relative);
+
+    /* Clipboard, guest agent (spice-vdagent) side.  Plain UTF-8 text on the
+     * CLIPBOARD selection only; everything else is ignored on both ends.
+     *
+     * The agent came up (@connected 1) or went away (0).  Fires once per
+     * transition, including the initial state once the main channel has
+     * negotiated it.  While it is 0 every clipboard entry point below is a
+     * no-op, so the host side can simply stop polling. */
+    void (*clipboard_agent)(void *user, int connected);
+    /* The guest took ownership of its clipboard and offers UTF-8 text.  The
+     * host answers by calling vsm_spice_clipboard_request() -- data is never
+     * pushed unrequested in either direction. */
+    void (*clipboard_grab)(void *user);
+    /* The guest dropped its clipboard ownership. */
+    void (*clipboard_release)(void *user);
+    /* The text a previous vsm_spice_clipboard_request() asked for.  @text is
+     * a NUL-terminated UTF-8 g_malloc() block that the callee OWNS and must
+     * release with g_free(). */
+    void (*clipboard_data)(void *user, char *text);
+    /* The guest wants the host clipboard's UTF-8 text; answer with
+     * vsm_spice_clipboard_send() (or with NULL if there is none). */
+    void (*clipboard_request)(void *user);
 } VsmSpiceCallbacks;
 
 /* Lifecycle.  vsm_spice_new() does not touch the network; vsm_spice_start()
@@ -102,6 +124,24 @@ void vsm_spice_send_scroll(VsmSpice *self, int steps, int button_state);
  * it may refuse, so never assume the mode from the request.  Used by the
  * VSM_FORCE_RELATIVE debug path and by the Input menu item it installs. */
 void vsm_spice_request_mouse_mode(VsmSpice *self, int relative);
+
+/* Clipboard.  All four are safe to call from the main thread with a NULL
+ * @self, and all four are silently dropped while no guest agent is connected
+ * -- the caller never has to track that state to stay correct.  Contents are
+ * never logged: the trace records types and byte counts only.
+ *
+ * Offer the host clipboard's UTF-8 text to the guest.  This announces
+ * availability only; the bytes travel later, in answer to the guest's
+ * request. */
+void vsm_spice_clipboard_grab(VsmSpice *self);
+/* Withdraw a previous offer (the host clipboard no longer holds text). */
+void vsm_spice_clipboard_release(VsmSpice *self);
+/* Ask the guest for the UTF-8 text it grabbed; it arrives as the
+ * clipboard_data callback. */
+void vsm_spice_clipboard_request(VsmSpice *self);
+/* Answer a clipboard_request callback.  @utf8 is NUL-terminated and is
+ * copied; NULL or "" sends nothing. */
+void vsm_spice_clipboard_send(VsmSpice *self, const char *utf8);
 
 /* SPICE button numbers, re-exported so main.m need not include the
  * protocol headers. */
