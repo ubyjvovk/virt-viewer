@@ -133,34 +133,41 @@ static BOOL vsm_clipboard_trace(void)
     [self pollPasteboard];
 }
 
-/* One look at the general pasteboard.  Only the change COUNT and the
- * presence of a text flavour are inspected; the bytes stay where they are
- * until the guest asks for them. */
+/* One look at the general pasteboard.  Nothing is offered unless there is a
+ * NON-EMPTY string behind the text flavour: `pbcopy </dev/null` leaves the
+ * flavour in place with zero characters behind it, and a grab for that can
+ * only ever be answered with "none".  Reading the string is the only way to
+ * tell the two apart -- it is reduced to a character count on the spot, and
+ * the count is all that is ever traced. */
 - (void)pollPasteboard
 {
     NSPasteboard *pb = NSPasteboard.generalPasteboard;
     NSInteger count = pb.changeCount;
-    BOOL hasText;
+    NSUInteger length;
 
     if (count == _seenChangeCount)
         return;
     _seenChangeCount = count;
 
-    hasText = [pb availableTypeFromArray:@[ NSPasteboardTypeString ]] != nil;
-    if (hasText) {
+    length = [pb stringForType:NSPasteboardTypeString].length;
+    if (length) {
         if (vsm_clipboard_trace())
-            NSLog(@"clipboard: host copy seen (change %ld), offering text to guest",
-                  (long)count);
+            NSLog(@"clipboard: host copy seen (change %ld), offering %lu character%s to guest",
+                  (long)count, (unsigned long)length, length == 1 ? "" : "s");
         _offeredToGuest = YES;
         vsm_spice_clipboard_grab(self.spice);
     } else if (_offeredToGuest) {
         /* The host clipboard now holds something this client cannot express
-         * -- an image, a file promise.  Withdrawing is better than leaving
-         * the guest able to request text that no longer exists. */
+         * -- an image, a file promise, an empty copy.  Withdrawing is better
+         * than leaving the guest able to request text that no longer
+         * exists. */
         if (vsm_clipboard_trace())
             NSLog(@"clipboard: host clipboard has no text, releasing offer");
         _offeredToGuest = NO;
         vsm_spice_clipboard_release(self.spice);
+    } else if (vsm_clipboard_trace()) {
+        NSLog(@"clipboard: host copy seen (change %ld) with no text, nothing offered",
+              (long)count);
     }
 }
 
@@ -170,8 +177,14 @@ static BOOL vsm_clipboard_trace(void)
                          stringForType:NSPasteboardTypeString];
 
     if (!text.length) {
+        /* The offer and the request race the pasteboard: whatever was there
+         * when the grab went out can be gone by the time the guest asks for
+         * it.  The request still has to be closed -- an agent left waiting on
+         * a reply stops acting on later grabs -- so answer "none" rather than
+         * saying nothing. */
         if (vsm_clipboard_trace())
-            NSLog(@"clipboard: guest asked for text, host has none");
+            NSLog(@"clipboard: guest asked for text, host has none, answering none");
+        vsm_spice_clipboard_send_none(self.spice);
         return;
     }
     if (vsm_clipboard_trace())

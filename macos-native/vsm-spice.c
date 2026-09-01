@@ -983,6 +983,25 @@ static gboolean do_clipboard_request(gpointer data)
     return G_SOURCE_REMOVE;
 }
 
+/* The "sorry, nothing" answer to a guest request.  Type NONE with an empty
+ * payload: the request is closed, and the guest is told there is no text
+ * rather than being handed an empty string.  spice-gtk answers the same case
+ * the same way (src/spice-gtk-session.c:1399, clipboard_received_cb). */
+static gboolean do_clipboard_send_none(gpointer data)
+{
+    VsmSpice *self = ((InputOp *)data)->self;
+
+    if (self->main_channel && self->agent_connected) {
+        if (vsm_spice_trace())
+            g_message("clipboard: host -> guest, none (0 bytes)");
+        spice_main_channel_clipboard_selection_notify(self->main_channel,
+                                                      VSM_CLIPBOARD_SELECTION,
+                                                      VD_AGENT_CLIPBOARD_NONE,
+                                                      NULL, 0);
+    }
+    return G_SOURCE_REMOVE;
+}
+
 static gboolean do_clipboard_send(gpointer data)
 {
     DataOp *op = data;
@@ -1018,6 +1037,13 @@ void vsm_spice_clipboard_request(VsmSpice *self)
     if (!self)
         return;
     invoke(self, do_clipboard_request, input_op(self, 0, 0, 0, 0));
+}
+
+void vsm_spice_clipboard_send_none(VsmSpice *self)
+{
+    if (!self)
+        return;
+    invoke(self, do_clipboard_send_none, input_op(self, 0, 0, 0, 0));
 }
 
 void vsm_spice_clipboard_send(VsmSpice *self, const char *utf8)
