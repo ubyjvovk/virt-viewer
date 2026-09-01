@@ -4,9 +4,9 @@ A standalone SPICE client for macOS with **no GTK anywhere**: spice-client-glib
 for the protocol, AppKit/Core Animation for the window, and a keycodemapdb
 scancode table for the keyboard.
 
-Milestone 1 scope: **screen, keyboard, absolute mouse.** There is deliberately
-no clipboard, no file transfer, no USB redirection, no audio, no relative
-("server") mouse mode, and no multi-display support.
+Scope so far: **screen, keyboard, absolute mouse, guest cursor shape.** There
+is deliberately no clipboard, no file transfer, no USB redirection, no audio,
+no relative ("server") mouse mode, and no multi-display support.
 
 ## Build
 
@@ -48,9 +48,11 @@ disconnected and the GLib thread is joined before the process exits.
 
 | variable | effect |
 | --- | --- |
-| `VSM_TRACE=1` | log every scancode, damage rect, motion, button and scroll event |
+| `VSM_TRACE=1` | log every scancode, damage rect, motion, button and scroll event, and every cursor define/hide/reset |
 | `VSM_DUMP_DIR=<dir>` | `SIGUSR1` writes the current guest framebuffer to `<dir>/frame-N.png` |
 | `VSM_SELFTEST=1` | two seconds after the first frame, replay a fixed benign input script (arrows, Escape, each modifier, absolute motion, left/right click, scroll) through the real responder methods |
+| `VSM_CURSOR_SELFTEST=1` | two seconds after the first frame, drive a synthetic cursor script (two shapes with different hotspots, then hide, then reset) through the real cursor code path |
+| `VSM_CURSOR_CHURN=N` | with `VSM_CURSOR_SELFTEST`, replace the cursor N times as fast as possible first, so `leaks(1)` can show there is no per-define leak |
 | `VSM_SELFTEST_QUIT=1` | with `VSM_SELFTEST`, terminate via the ⌘Q action four seconds later |
 | `SPICE_DEBUG=1 G_MESSAGES_DEBUG=all` | spice-client-glib's own protocol tracing |
 
@@ -132,6 +134,56 @@ press/release pair.
 Every held key is released when the window resigns key, when the application
 resigns active, and on quit — otherwise a guest is left with a stuck modifier.
 
+
+### Cursor
+
+The cursor channel is connected for display 0 and gives the local pointer the
+guest's shape. spice-client-glib is watched through `notify::cursor` rather
+than the `::cursor-set` signal — same payload, but `cursor-set` has been
+deprecated since spice-gtk 0.34 — plus `cursor-hide` and `cursor-reset`.
+
+The shape arrives as premultiplied RGBA (`channel-cursor.c` byte-swaps its
+BGRA words before handing it over), which is exactly what
+`NSBitmapImageRep` wants with `bitmapFormat: 0`, so the bitmap is a straight
+`memcpy` and the `NSImage` built from it becomes an `NSCursor` with the
+guest's hotspot. The shape is copied on the GLib thread — the channel may
+recycle its buffer as soon as the handler returns — and the copy is handed
+to the main thread, which owns and frees it.
+
+**The shape is treated as 1x points.** A 24x24 guest cursor becomes a 24x24
+*point* image, so it is the right size next to guest content at any window
+scale; on a Retina panel that means it is drawn at 2 physical pixels per
+cursor pixel and is correspondingly softer than a native macOS cursor. A
+sharp 2x cursor would have to come from the guest, and SPICE has no way to
+ask for one.
+
+The cursor is applied with `-[NSView addCursorRect:cursor:]`, so it is in
+force only while the pointer is inside the guest area: over the title bar,
+over another window or anywhere else on the desktop the pointer is whatever
+the system would otherwise show. A define that arrives while the pointer is
+already inside the view also sets the cursor directly, but only when the
+viewer is the key window — `mouseLocationOutsideOfEventStream` reports the
+pointer in this window's coordinates whether or not this window is the one
+under it, so an occluded viewer would otherwise repaint the pointer on top of
+another app.
+
+`cursor-hide` shows a fully transparent 1x1 cursor through that same cursor
+rect. It deliberately does not call `-[NSCursor hide]`: that is
+application-global and unbalanced hide/unhide state survives focus changes,
+so a guest that hid its pointer could leave the user with no pointer at all.
+`cursor-reset` drops the guest shape and falls back to the system arrow.
+
+Not handled: `cursor-move` (the server telling the client where to draw the
+pointer) is only meaningful in server/relative mouse mode, which this build
+does not implement.
+
+Note that a guest which composites its pointer into the framebuffer instead
+of using the cursor plane never sends a shape at all — it sends
+`SPICE_CURSOR_FLAGS_NONE` at channel init, which arrives as `cursor-hide`,
+and the pointer the user sees is the one drawn in the guest's own pixels.
+That is the correct outcome: without hiding the local pointer there would be
+two of them.
+
 ### Mouse
 
 Absolute (client) mode only, via `spice_inputs_channel_position()`. View points
@@ -153,5 +205,5 @@ rather than half-implemented — see the gap list in the ticket report.
 | `main-view.h` | the `VsmView` interface, shared with the debug helpers |
 | `vsm-spice.c/.h` | GLib thread, session and channel wiring, damage blit, input marshalling |
 | `vsm-keymap.c/.h` | generated osx → xtkbd scancode table |
-| `vsm-debug.m/.h` | framebuffer PNG dump and the scripted input self-test |
+| `vsm-debug.m/.h` | framebuffer PNG dump, the scripted input self-test and the synthetic cursor self-test |
 | `build.sh` | the build |

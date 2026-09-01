@@ -46,6 +46,8 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 @implementation VsmView {
     NSMutableSet<NSNumber *> *_heldModifierKeyCodes;
     int _buttonState;
+    NSCursor *_guestCursor;   /* the guest's shape, nil = system arrow */
+    BOOL _cursorHidden;       /* guest asked for no pointer at all */
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -172,6 +174,84 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     vsm_spice_release_all_keys(self.spice);
 }
 
+/* --------------------------------------------------------------- cursor */
+
+/* A fully transparent 1x1 cursor.  This is how "the guest hid the pointer"
+ * is expressed: -[NSCursor hide] is application-global and survives focus
+ * loss, so it would leave the user with no pointer anywhere on the desktop
+ * if the guest hid its cursor and the app then lost focus.  A transparent
+ * image scoped to the view's cursor rect has neither problem. */
++ (NSCursor *)blankCursor
+{
+    static NSCursor *blank;
+    static dispatch_once_t once;
+
+    dispatch_once(&once, ^{
+        NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+        [image lockFocus];
+        [NSColor.clearColor set];
+        NSRectFill(NSMakeRect(0, 0, 1, 1));
+        [image unlockFocus];
+        blank = [[NSCursor alloc] initWithImage:image hotSpot:NSZeroPoint];
+    });
+    return blank;
+}
+
+/* The cursor actually shown while the pointer is inside the view. */
+- (NSCursor *)effectiveCursor
+{
+    if (_cursorHidden)
+        return [VsmView blankCursor];
+    return _guestCursor ?: NSCursor.arrowCursor;
+}
+
+/* Cursor rects are per-view, so the pointer reverts to whatever the system
+ * would otherwise show as soon as it leaves the guest area -- over the title
+ * bar, over another window, anywhere outside. */
+- (void)resetCursorRects
+{
+    [self addCursorRect:self.bounds cursor:[self effectiveCursor]];
+}
+
+/* Re-ask AppKit for the rects so a shape that changed while the pointer is
+ * already inside the view takes effect immediately. */
+- (void)refreshCursorRects
+{
+    NSPoint p = [self convertPoint:self.window.mouseLocationOutsideOfEventStream
+                          fromView:nil];
+
+    [self.window invalidateCursorRectsForView:self];
+    /* mouseLocationOutsideOfEventStream reports the pointer in this window's
+     * coordinates whether or not this window is the one under it, so the key
+     * check matters: without it an occluded viewer would repaint the cursor
+     * on top of whatever app the user is actually pointing at. */
+    if (self.window.isKeyWindow && NSPointInRect(p, self.bounds))
+        [[self effectiveCursor] set];
+}
+
+- (void)setGuestCursor:(NSCursor *)cursor
+{
+    /* ARC drops the previous NSCursor (and with it its NSImage and bitmap
+     * backing) here, so a session's worth of cursor-defines costs one live
+     * cursor, not thousands. */
+    _guestCursor = cursor;
+    _cursorHidden = NO;
+    [self refreshCursorRects];
+}
+
+- (void)hideGuestCursor
+{
+    _cursorHidden = YES;
+    [self refreshCursorRects];
+}
+
+- (void)resetGuestCursor
+{
+    _guestCursor = nil;
+    _cursorHidden = NO;
+    [self refreshCursorRects];
+}
+
 /* ---------------------------------------------------------------- mouse */
 
 /* View point -> guest pixel, honouring the aspect-fit letterboxing that
@@ -280,6 +360,7 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
 @property (nonatomic, copy)   NSString *uri;
 @property (nonatomic, strong) dispatch_source_t dumpSource;
 @property (nonatomic, assign) BOOL selftestDone;
+@property (nonatomic, assign) BOOL cursorSelftestDone;
 @end
 
 @implementation VsmAppDelegate
@@ -372,6 +453,15 @@ static BOOL vsm_trace;   /* VSM_TRACE=1: log every scancode/mouse event */
     [self.view refreshSurface];
     NSLog(@"primary surface %dx%d (backing scale %.1f)", width, height, scale);
 
+    if (!self.cursorSelftestDone &&
+        NSProcessInfo.processInfo.environment[@"VSM_CURSOR_SELFTEST"]) {
+        self.cursorSelftestDone = YES;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+            vsm_run_cursor_selftest(self.view);
+        });
+    }
+
     if (!self.selftestDone &&
         NSProcessInfo.processInfo.environment[@"VSM_SELFTEST"]) {
         self.selftestDone = YES;
@@ -422,6 +512,78 @@ static void cb_damaged(void *user, int x, int y, int w, int h)
     [self.view refreshSurface];
 }
 
+/* Build an NSCursor from the guest's RGBA bytes.  The shape is treated as
+ * 1x points: a guest cursor is authored in guest pixels and the view shows
+ * guest pixels, so one cursor pixel is one point.  On a 2x panel that means
+ * the shape is drawn at 2x2 physical pixels per cursor pixel -- softer than
+ * a native cursor, but the correct size next to the guest content, which is
+ * what a pointer has to be.  A Retina-aware (2x) cursor would need the guest
+ * to author one, and SPICE has no way to ask for it. */
+NSCursor *vsm_cursor_from_rgba(int width, int height,
+                               int hot_x, int hot_y,
+                               const uint8_t *rgba)
+{
+    NSBitmapImageRep *rep;
+    NSImage *image;
+
+    /* bitmapFormat 0 = premultiplied alpha, RGBA byte order -- exactly what
+     * channel-cursor.c produces (it byte-swaps its BGRA words for us). */
+    rep = [[NSBitmapImageRep alloc]
+        initWithBitmapDataPlanes:NULL
+                      pixelsWide:width
+                      pixelsHigh:height
+                   bitsPerSample:8
+                 samplesPerPixel:4
+                        hasAlpha:YES
+                        isPlanar:NO
+                  colorSpaceName:NSDeviceRGBColorSpace
+                    bitmapFormat:0
+                     bytesPerRow:width * 4
+                    bitsPerPixel:32];
+    if (!rep)
+        return nil;
+    memcpy(rep.bitmapData, rgba, (size_t)width * (size_t)height * 4);
+
+    image = [[NSImage alloc] initWithSize:NSMakeSize(width, height)];
+    [image addRepresentation:rep];
+
+    /* The hotspot is in the image's own (top-left origin) coordinates, which
+     * is how SPICE expresses it too. */
+    return [[NSCursor alloc] initWithImage:image
+                                   hotSpot:NSMakePoint(hot_x, hot_y)];
+}
+
+static void cb_cursor_define(void *user, int width, int height,
+                             int hot_x, int hot_y, const uint8_t *rgba)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    NSCursor *cursor;
+
+    if (vsm_trace)
+        NSLog(@"cursor-define %dx%d hotspot %d,%d", width, height, hot_x, hot_y);
+    cursor = vsm_cursor_from_rgba(width, height, hot_x, hot_y, rgba);
+    /* vsm-spice.c handed the copy over; NSBitmapImageRep took its own. */
+    free((void *)rgba);
+    if (cursor)
+        [self.view setGuestCursor:cursor];
+}
+
+static void cb_cursor_hide(void *user)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    if (vsm_trace)
+        NSLog(@"cursor-hide");
+    [self.view hideGuestCursor];
+}
+
+static void cb_cursor_reset(void *user)
+{
+    VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
+    if (vsm_trace)
+        NSLog(@"cursor-reset");
+    [self.view resetGuestCursor];
+}
+
 static void cb_title(void *user, const char *title)
 {
     VsmAppDelegate *self = (__bridge VsmAppDelegate *)user;
@@ -450,6 +612,9 @@ int main(int argc, const char *argv[])
             .title          = cb_title,
             .status         = cb_status,
             .disconnected   = cb_disconnected,
+            .cursor_define  = cb_cursor_define,
+            .cursor_hide    = cb_cursor_hide,
+            .cursor_reset   = cb_cursor_reset,
         };
 
         if (argc != 2) {

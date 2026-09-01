@@ -16,6 +16,7 @@
 #define VSM_SPICE_H
 
 #include <IOSurface/IOSurface.h>
+#include <stdint.h>
 
 typedef struct _VsmSpice VsmSpice;
 
@@ -30,6 +31,19 @@ typedef struct {
     void (*title)(void *user, const char *title);
     void (*status)(void *user, const char *status);
     void (*disconnected)(void *user, const char *reason);
+
+    /* Cursor channel.  The guest defined a new pointer shape: @width x
+     * @height pixels of non-planar RGBA (byte order R,G,B,A; alpha is
+     * premultiplied), with the hotspot at @hot_x/@hot_y in the same pixels.
+     * @rgba is a malloc()'d copy that the callee OWNS and must free() --
+     * spice-client-glib owns the original and may recycle it as soon as the
+     * signal handler returns, so the copy is taken on the GLib thread. */
+    void (*cursor_define)(void *user, int width, int height,
+                          int hot_x, int hot_y, const uint8_t *rgba);
+    /* The guest hid the pointer; show nothing over the guest area. */
+    void (*cursor_hide)(void *user);
+    /* The cursor channel was reset; revert to the default system arrow. */
+    void (*cursor_reset)(void *user);
 } VsmSpiceCallbacks;
 
 /* Lifecycle.  vsm_spice_new() does not touch the network; vsm_spice_start()
