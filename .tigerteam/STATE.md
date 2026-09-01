@@ -143,6 +143,21 @@ Two tracks on branch `mac-port` (board branch; never pushed anywhere):
   mouse-driven); after T-0026 bundling the .app needs a FRESH
   Accessibility grant (README documents it).
 
+- 2026-09-01 — T-0026 bundle ACCEPTED (1 attempt, $7.01, +826/-9; merged
+  build + 5/5 green). 21 MB relocatable "SPICE Viewer.app": dylibbundler
+  copy → rpath dedupe → sign inside-out (T-0006 lesson held); minos-
+  matched LSMinimumSystemVersion (computed as MAX over all bundled
+  Mach-Os); spice:// URL + .vv double-click verified incl.
+  already-connected alert. Fixed two LaunchServices quirks (openURLs
+  gets file opens since 10.13; bundled argv arrives via openFile).
+  Decisions to surface to user: APP_NAME/BUNDLE_ID/APP_VERSION
+  placeholders (BUNDLE_ID is load-bearing: TCC grant, LaunchServices,
+  defaults all key on it). Worker judgement accepted: delete-this-file
+  honored only on ACCEPTED connections; .vv UTI imported (not exported)
+  to avoid fighting the GTK bundle's Owner rank. P3: make-bundle now
+  needs brew dylibbundler (GTK bundler dropped it — could inline);
+  window-targeted screenshot helper worth promoting to scripts/.
+
 ## Board snapshot
 - 2026-09-01 — **21/21 done, drained.** Waves: GTK port T-0001..T-0010; PR
   assembly T-0011; stress reviews T-0012..14; fix wave T-0015..19;
